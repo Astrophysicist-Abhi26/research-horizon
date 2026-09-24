@@ -51,17 +51,17 @@ profiles:
     interests:
       phys.condmat: 100
       phys.quantum: 90
-      math.mathphys: 60
-      math.topology: 45
-      phys.hepth: 40            # QFT methods, anomalies, generalised symmetries
-      ai.science: 40
-      phys.general: 35
-      phys.fluids: 30
-      math.probability: 35      # statistical mechanics, random systems
-      math.geometry: 25
-      math.algebra: 25
-      phys.gr: 15
-      ai: 15
+      math.mathphys: 55
+      math.topology: 40
+      phys.hepth: 25            # QFT methods, anomalies, generalised symmetries
+      phys.general: 25
+      ai.science: 25
+      math.probability: 25      # statistical mechanics, random systems
+      phys.fluids: 20
+      math.geometry: 15
+      math.algebra: 15
+      phys.gr: 10
+      ai: 10
     cross_field: 0.25
     synergies:
       - {when: [phys.condmat, phys.quantum], bonus: 10}
@@ -84,16 +84,16 @@ profiles:
       cosmo.early: 70
       cosmo.dm: 60
       astro.he: 55              # compact objects, gravitational waves
-      math.geometry: 55
-      math.topology: 50
-      cosmo: 45
-      math.algebra: 45
-      phys.quantum: 40
-      ai.science: 30
-      phys.condmat: 20
-      phys.general: 20
-      astro: 20
-      math: 20
+      math.geometry: 50
+      math.topology: 45
+      math.algebra: 40
+      cosmo: 35
+      phys.quantum: 35
+      ai.science: 20
+      phys.condmat: 15
+      phys.general: 15
+      astro: 10
+      math: 10
     cross_field: 0.25
     synergies:
       - {when: [phys.hepth, [math.geometry, math.topology, math.algebra, math.mathphys]], bonus: 10}

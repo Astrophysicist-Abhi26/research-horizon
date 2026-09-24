@@ -2,7 +2,7 @@
 
 A research-event radar for every field. Conferences, schools, workshops, seminars and
 webinars are collected daily into **one shared database**, tagged by subject, and ranked
-for the research area you care about — in Bengaluru, across India, online and abroad.
+for the **research profile** you choose — in Bengaluru, across India, online and abroad.
 
 It grew out of [Event Horizon](https://github.com/Astrophysicist-Abhi26/event-horizon), a
 cosmology-focused radar, and is being widened step by step: **physics first**, then
@@ -22,16 +22,42 @@ GitHub Actions (daily 08:00 IST, on every push to main, and on "Add event" issue
  │   │                         a source that is down keeps its last good events ("stale")
  │   ├─ normalise              drop past + undated events, detect Bengaluru/India/online/abroad
  │   ├─ de-duplicate           same event from several sources -> one card, sources merged
- │   └─ classify               1 declared subject codes (arXiv / INSPIRE / tags)
- │                             2 word-bounded keyword rules (title + abstract)
- │                             3 [B] local embedding classifier, self-calibrating (free)
- │                             4 [C] Claude classifier, optional (needs API key)
+ │   ├─ classify               1 declared subject codes (arXiv / INSPIRE / tags)
+ │   │                         2 word-bounded keyword rules (title + abstract)
+ │   │                         3 [B] local embedding classifier, self-calibrating (free)
+ │   │                         4 [C] Claude classifier, optional (needs API key)
+ │   └─ rank                   one relevance score per research profile (profiles.yaml)
  ├─ deploy                     docs/ (incl. the fresh events.json) straight to GitHub Pages
  └─ health alert               a GitHub Issue only when a source newly breaks
 ```
 
 The workflow is read-only on the repository: it **never commits**. The event database
 lives only in the deployed site.
+
+## Research profiles
+
+The same events, ranked differently. Pick a profile at the top of the site; the address
+changes to `…/?p=<profile>`, a link you can bookmark or send to someone in that field.
+
+| Profile | Ranks first |
+|---|---|
+| Explore everything (default) | every field alike — browse by date |
+| Condensed matter & quantum physics | condensed matter, statistical physics, quantum matter and information |
+| High-energy theory & gravitation | strings, QFT, holography, particle physics, GR, early universe |
+| Astronomy & astrophysics | stars, galaxies, compact objects, GW, transients |
+| Cosmology & ML for science | dark energy, large-scale structure, CMB, dark matter, ML for science |
+
+A profile never changes what is collected or how it is tagged — only the ranking. Each is a
+short block in [`scraper/profiles.yaml`](scraper/profiles.yaml): a weight (0–100) per field
+or sub-field (the most specific one listed wins), a share for events spanning a second field,
+optional bonuses for combinations, places and event types. Events with no weighted topic
+score 0, however close by. A mistake in the file (an unknown topic, region or key) fails
+the tests before anything is deployed. How a score is computed is documented at the top
+of [`scraper/profiles.py`](scraper/profiles.py).
+
+**Coming next:** a finer physics tree (topological phases, strongly correlated systems,
+quantum information, AMO, soft matter …), physics sources beyond astronomy and high-energy
+physics, then other subjects.
 
 ## Sources
 
@@ -56,6 +82,7 @@ them from your own network with `python scraper/doctor.py`.
 |---|---|
 | add a one-off event | open an **Add event** issue (link at the bottom of the site), or add it to `scraper/watchlist.yaml` |
 | add an institute's events page | add an entry to `scraper/institutes.yaml`, then `python scraper/doctor.py <name>` |
+| add or tune a research profile | a block in `scraper/profiles.yaml`, then `python -m pytest -q tests` |
 | fix a mislabelled event | add `["its title", correct.subfield]` to `scraper/labels.yaml` |
 | add vocabulary for a field | `RULES` in `scraper/taxonomy.py` (then run the tests) |
 
