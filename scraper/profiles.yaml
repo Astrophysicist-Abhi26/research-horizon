@@ -1,0 +1,171 @@
+# Research profiles — one shared event database, ranked differently per profile.
+#
+# A profile never changes which events are collected or how they are tagged; it
+# only changes how they are ranked. The site has a profile picker, and
+# ?p=<profile id> in the page address opens a profile directly (a link you can
+# bookmark or share). How a score is computed is explained at the top of
+# scraper/profiles.py.
+#
+# Keys of a profile
+#   label, blurb   shown in the picker
+#   interests      taxonomy node -> weight 0-100 (or a level name below). A node is a
+#                  field (cosmo, astro, ai, math, physics) or a sub-field (cosmo.de,
+#                  phys.condmat, ... — see scraper/taxonomy.py). For each tag of an
+#                  event the MOST SPECIFIC node listed wins, so "physics: 30" plus
+#                  "phys.condmat: 100" means condensed matter 100, other physics 30.
+#                  Nodes not listed (nor their field) count 0: such events score 0.
+#                  Negative weights push matching events down.
+#   cross_field    share of the best weight from a second field that is added
+#                  (an event spanning two of your fields ranks above one field)
+#   synergies      bonus when an event combines areas. `when` lists groups; each
+#                  group (a node, or a list of alternatives) must match. Within the
+#                  same `group` name only the largest applicable bonus counts.
+#   places         bonus by region: bengaluru, india, online, abroad, unknown
+#   types          bonus by event type: Conference, Workshop, School,
+#                  Talk / Seminar, Lecture series
+#   focus          nodes behind the header's "focus" button and the
+#   focus_label      "<focus> first, then date" sort (optional)
+#
+# Level names: top 100 · very_high 85 · high 70 · medium 45 · low 20 · none 0 · avoid -40
+
+default: explore
+
+profiles:
+
+  explore:
+    label: Explore everything
+    blurb: Every field weighted equally. Sort by date to browse everything collected.
+    interests: {cosmo: 50, astro: 50, ai: 50, math: 50, physics: 50}
+    cross_field: 0
+    places: {bengaluru: 10, india: 5}
+
+  # ── Physics ────────────────────────────────────────────────────────────────
+
+  condensed-quantum:
+    label: Condensed matter & quantum physics
+    blurb: >-
+      Condensed matter and statistical physics, quantum matter and quantum
+      information first; then mathematical physics, topology and related theory.
+    focus: [phys.condmat, phys.quantum]
+    focus_label: condensed matter & quantum
+    interests:
+      phys.condmat: 100
+      phys.quantum: 90
+      math.mathphys: 60
+      math.topology: 45
+      phys.hepth: 40            # QFT methods, anomalies, generalised symmetries
+      ai.science: 40
+      phys.general: 35
+      phys.fluids: 30
+      math.probability: 35      # statistical mechanics, random systems
+      math.geometry: 25
+      math.algebra: 25
+      phys.gr: 15
+      ai: 15
+    cross_field: 0.25
+    synergies:
+      - {when: [phys.condmat, phys.quantum], bonus: 10}
+      - {when: [phys.condmat, [math.topology, math.mathphys]], bonus: 10}   # topological matter
+      - {when: [[phys.condmat, phys.quantum], ai], bonus: 8}
+    places: {bengaluru: 10, india: 5}
+    types: {School: 8, Workshop: 5}
+
+  hep-gravitation:
+    label: High-energy theory & gravitation
+    blurb: >-
+      Strings, QFT, holography, particle physics, general relativity and quantum
+      gravity, with early-universe cosmology and mathematical physics.
+    focus: [phys.hepth, phys.gr]
+    focus_label: high-energy & gravitation
+    interests:
+      phys.hepth: 100
+      phys.gr: 95
+      math.mathphys: 75
+      cosmo.early: 70
+      cosmo.dm: 60
+      astro.he: 55              # compact objects, gravitational waves
+      math.geometry: 55
+      math.topology: 50
+      cosmo: 45
+      math.algebra: 45
+      phys.quantum: 40
+      ai.science: 30
+      phys.condmat: 20
+      phys.general: 20
+      astro: 20
+      math: 20
+    cross_field: 0.25
+    synergies:
+      - {when: [phys.hepth, [math.geometry, math.topology, math.algebra, math.mathphys]], bonus: 10}
+      - {when: [phys.gr, astro.he], bonus: 8}
+    places: {bengaluru: 10, india: 5}
+    types: {School: 8, Workshop: 5}
+
+  astrophysics:
+    label: Astronomy & astrophysics
+    blurb: >-
+      Stars, galaxies, compact objects, gravitational waves and transients, with
+      cosmology, gravitation and ML for astronomy.
+    focus: [astro]
+    focus_label: astrophysics
+    interests:
+      astro.he: 90
+      astro.galactic: 90
+      astro.stellar: 85
+      astro.general: 80
+      cosmo: 65
+      phys.gr: 55
+      ai.science: 45
+      phys.fluids: 35           # plasma, MHD, radiative processes
+      math.probability: 25      # astrostatistics
+      phys.hepth: 25
+      phys.general: 20
+      ai: 15
+      math: 10
+    cross_field: 0.25
+    synergies:
+      - {when: [astro, ai], bonus: 12}
+    places: {bengaluru: 10, india: 5}
+    types: {School: 5, Workshop: 5}
+
+  cosmology-ml:
+    label: Cosmology & ML for science
+    blurb: >-
+      Dark energy, large-scale structure, CMB and dark matter first; then ML for
+      science, astrophysics, gravitation and mathematics. (Event Horizon's ranking.)
+    focus: [cosmo]
+    focus_label: cosmology
+    interests:
+      cosmo.de: 68
+      cosmo.lss: 64
+      cosmo.early: 62
+      cosmo.dm: 60
+      cosmo.general: 60
+      ai.science: 52
+      ai.theory: 40
+      ai.general: 30
+      astro.he: 40
+      astro.galactic: 40
+      astro.stellar: 32
+      astro.general: 36
+      math.nt: 34
+      math.topology: 34
+      math.algebra: 32
+      math.geometry: 30
+      math.probability: 32
+      math.mathphys: 30
+      math.analysis: 24
+      math.other: 20
+      phys.gr: 40
+      phys.hepth: 28
+      phys.quantum: 18
+      phys.condmat: 12
+      phys.fluids: 12
+      phys.general: 10
+    cross_field: 0.25
+    synergies:
+      - {when: [cosmo, ai], bonus: 25, group: ml}
+      - {when: [astro, ai], bonus: 18, group: ml}
+      - {when: [cosmo, [math.probability, ai.theory]], bonus: 10}
+    places: {bengaluru: 10, india: 5}
+    types: {School: 5, Workshop: 5}

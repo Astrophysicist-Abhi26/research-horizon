@@ -1,5 +1,6 @@
 """
-Classification and relevance scoring.
+Classification: which sub-fields an event is about. (How much it matters is a
+per-profile question, answered by profiles.py.)
 
 Evidence, strongest first:
   1. declared  subject codes the organisers attached (arXiv/INSPIRE/tags)
@@ -89,47 +90,19 @@ def assign(score, why):
     basis = set()
     for sf in tagged:
         basis |= why[sf]
-    return sorted(tagged, key=lambda s: -T.SUBFIELDS[s][2]), basis
-
-
-def score_event(subfields, region, etype, basis):
-    if not subfields:
-        return 0
-    weights = sorted(((T.SUBFIELDS[s][2], T.parent(s)) for s in subfields), reverse=True)
-    best_w, best_f = weights[0]
-    other = [w for w, f in weights if f != best_f]
-    s = best_w + (T.BONUS_SECOND_FIELD * other[0] if other else 0)
-    fams = {T.parent(x) for x in subfields}
-    if "cosmo" in fams and "ai" in fams:
-        s += T.BONUS_COSMO_X_AI
-    elif "astro" in fams and "ai" in fams:
-        s += T.BONUS_ASTRO_X_AI
-    if "cosmo" in fams and ("math.probability" in subfields or "ai.theory" in subfields):
-        s += T.BONUS_COSMO_X_STATS
-    if region == "bengaluru":
-        s += T.BONUS_BENGALURU
-    elif region == "india":
-        s += T.BONUS_INDIA
-    if etype in ("School", "Workshop"):
-        s += T.BONUS_SCHOOL
-    if basis == {"embedding"}:
-        s *= 0.85  # judged by the embedding alone: slightly less sure
-    return int(round(min(100, s)))
+    # strongest evidence first; ties in taxonomy display order
+    return sorted(tagged, key=lambda s: (-score[s], T.ORDER[s])), basis
 
 
 def classify(ev, embed_result=None, llm_result=None):
-    """Returns (subfields, fields, score, basis)."""
+    """Returns (subfields, fields, basis)."""
     score, why = gather_evidence(ev, embed_result)
     subfields, basis = assign(score, why)
     if llm_result is not None:
-        strong_declared = {sf for sf in subfields
-                           if "declared" in why[sf] and score[sf] >= T.STRONG}
+        strong_declared = [sf for sf in subfields
+                           if "declared" in why[sf] and score[sf] >= T.STRONG]
         llm_sfs = [s for s in llm_result.get("subfields", []) if s in T.SUBFIELDS]
-        subfields = sorted(set(llm_sfs) | strong_declared,
-                           key=lambda s: -T.SUBFIELDS[s][2])
+        subfields = list(dict.fromkeys(llm_sfs + strong_declared))  # Claude's order first
         basis = {"llm"} | ({"declared"} if strong_declared else set())
     fields = sorted({T.parent(s) for s in subfields}, key=list(T.FIELDS).index)
-    sc = score_event(subfields, ev.get("region"), ev.get("type"), basis)
-    if llm_result is not None and isinstance(llm_result.get("relevance"), (int, float)):
-        sc = int(round(0.5 * sc + 0.5 * max(0, min(100, llm_result["relevance"]))))
-    return subfields, fields, sc, sorted(basis)
+    return subfields, fields, sorted(basis)

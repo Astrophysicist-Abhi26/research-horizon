@@ -1,13 +1,14 @@
 """
-Event Horizon taxonomy and interest profile.
+Research Horizon taxonomy: everything that decides *what an event is about*.
 
-Everything that decides *what an event is about* and *how much it matters to
-you* lives in this one file. Edit freely.
+How much an event matters is NOT decided here: that is a property of a research
+profile (scraper/profiles.yaml), so the same tagged events can be ranked
+differently for different researchers.
 
 Structure
 ---------
-FIELDS      top-level fields, in display order (Cosmology first on purpose)
-SUBFIELDS   sub-field id -> (parent field, label, relevance weight)
+FIELDS      top-level fields, in display order
+SUBFIELDS   sub-field id -> (parent field, label)
 RULES       sub-field id -> list of regex patterns (word-boundary safe)
 DECLARED    subject codes that *organisers* attach to events (arXiv-style
             researchseminars topics, INSPIRE categories, ai-deadlines tags)
@@ -29,54 +30,40 @@ FIELDS = {
     "physics": "Physics",
 }
 
-# id: (parent, label, weight). Weight = how much an event on this topic
-# matters to you, 0-100, before bonuses. Cosmology is deliberately highest.
+# id: (parent field, label). Display order follows this table.
 SUBFIELDS = {
-    "cosmo.de":      ("cosmo", "Dark energy & expansion", 68),
-    "cosmo.lss":     ("cosmo", "Large-scale structure & surveys", 64),
-    "cosmo.early":   ("cosmo", "CMB & early universe", 62),
-    "cosmo.dm":      ("cosmo", "Dark matter", 60),
-    "cosmo.general": ("cosmo", "Cosmology (general)", 60),
+    "cosmo.de":      ("cosmo", "Dark energy & expansion"),
+    "cosmo.lss":     ("cosmo", "Large-scale structure & surveys"),
+    "cosmo.early":   ("cosmo", "CMB & early universe"),
+    "cosmo.dm":      ("cosmo", "Dark matter"),
+    "cosmo.general": ("cosmo", "Cosmology (general)"),
 
-    "ai.science":    ("ai", "ML for science", 52),
-    "ai.theory":     ("ai", "ML theory", 40),
-    "ai.general":    ("ai", "AI / ML (general)", 30),
+    "ai.science":    ("ai", "ML for science"),
+    "ai.theory":     ("ai", "ML theory"),
+    "ai.general":    ("ai", "AI / ML (general)"),
 
-    "astro.he":       ("astro", "High-energy, compact objects & GW", 40),
-    "astro.galactic": ("astro", "Galaxies & AGN", 40),
-    "astro.stellar":  ("astro", "Stars, Sun & planets", 32),
-    "astro.general":  ("astro", "Astronomy (general)", 36),
+    "astro.he":       ("astro", "High-energy, compact objects & GW"),
+    "astro.galactic": ("astro", "Galaxies & AGN"),
+    "astro.stellar":  ("astro", "Stars, Sun & planets"),
+    "astro.general":  ("astro", "Astronomy (general)"),
 
-    "math.nt":        ("math", "Number theory", 34),
-    "math.topology":  ("math", "Topology", 34),
-    "math.algebra":   ("math", "Algebra & representation theory", 32),
-    "math.geometry":  ("math", "Geometry", 30),
-    "math.probability": ("math", "Probability & statistics", 32),
-    "math.mathphys":  ("math", "Mathematical physics", 30),
-    "math.analysis":  ("math", "Analysis & PDE", 24),
-    "math.other":     ("math", "Other mathematics", 20),
+    "math.nt":        ("math", "Number theory"),
+    "math.topology":  ("math", "Topology"),
+    "math.algebra":   ("math", "Algebra & representation theory"),
+    "math.geometry":  ("math", "Geometry"),
+    "math.probability": ("math", "Probability & statistics"),
+    "math.mathphys":  ("math", "Mathematical physics"),
+    "math.analysis":  ("math", "Analysis & PDE"),
+    "math.other":     ("math", "Other mathematics"),
 
-    "phys.gr":       ("physics", "Gravitation & GR", 40),
-    "phys.hepth":    ("physics", "High-energy theory & QFT", 28),
-    "phys.quantum":  ("physics", "Quantum physics", 18),
-    "phys.condmat":  ("physics", "Condensed matter & stat mech", 12),
-    "phys.fluids":   ("physics", "Fluids, plasma & climate", 12),
-    "phys.general":  ("physics", "Physics (other)", 10),
+    "phys.gr":       ("physics", "Gravitation & GR"),
+    "phys.hepth":    ("physics", "High-energy theory & QFT"),
+    "phys.quantum":  ("physics", "Quantum physics"),
+    "phys.condmat":  ("physics", "Condensed matter & stat mech"),
+    "phys.fluids":   ("physics", "Fluids, plasma & climate"),
+    "phys.general":  ("physics", "Physics (other)"),
 }
 
-# Bonuses applied on top of the best single weight (see score_event)
-BONUS_COSMO_X_AI = 25        # your research intersection
-BONUS_ASTRO_X_AI = 18
-BONUS_COSMO_X_STATS = 10     # cosmology x inference / statistics
-BONUS_SECOND_FIELD = 0.25    # fraction of the best *other-field* weight
-BONUS_BENGALURU = 10
-BONUS_INDIA = 5
-BONUS_SCHOOL = 5             # schools/workshops are high value for a PhD student
-
-# Default relevance threshold used for notifications (the website default is
-# lower; you control it with the slider).
-NOTIFY_MIN_SCORE = 45
-URGENT_MIN_SCORE = 80        # these trigger an immediate notification
 
 # ---------------------------------------------------------------------------
 # Keyword rules. All patterns are case-insensitive and word-bounded unless the
@@ -442,6 +429,23 @@ COMPILED = {sf: [_compile(p) for p in pats] for sf, pats in RULES.items()}
 
 def parent(sf):
     return SUBFIELDS[sf][0]
+
+
+def label(node):
+    return FIELDS[node] if node in FIELDS else SUBFIELDS[node][1]
+
+
+def is_node(node):
+    """A taxonomy node a profile may weight: a field or a sub-field."""
+    return node in FIELDS or node in SUBFIELDS
+
+
+def ancestors(node):
+    """The node itself, then its ancestors up to the field (most specific first)."""
+    return [node] if node in FIELDS else [node, SUBFIELDS[node][0]]
+
+
+ORDER = {sf: i for i, sf in enumerate(SUBFIELDS)}   # display order of sub-fields
 
 
 def export_for_frontend():

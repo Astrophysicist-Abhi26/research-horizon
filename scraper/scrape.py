@@ -2,12 +2,13 @@
 Research Horizon — daily pipeline.
 
   sources -> health check -> normalise -> drop past/undated -> de-duplicate
-  -> classify (declared codes + keywords + embeddings [+ Claude]) -> score
-  -> docs/events.json  (+ notification files for the GitHub Action)
+  -> classify (declared codes + keywords + embeddings [+ Claude])
+  -> score once per research profile (profiles.yaml)
+  -> docs/events.json  (+ a health-alert file for the GitHub Action)
 
 Run locally:  python scraper/scrape.py
-Options (env): EH_DIGEST=1 forces the weekly digest; ANTHROPIC_API_KEY enables
-Option C; EH_NO_EMBED=1 skips Option B (faster local runs).
+Options (env): ANTHROPIC_API_KEY enables Option C; EH_NO_EMBED=1 skips
+Option B (faster local runs).
 """
 
 import datetime as dt
@@ -20,6 +21,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import profiles as P                                      # noqa: E402
 import taxonomy as T                                      # noqa: E402
 from classify import classify                             # noqa: E402
 from common import clean, norm_title, today               # noqa: E402
@@ -252,66 +254,30 @@ def classify_all(events):
     except Exception as exc:
         llm_results, status["llm"] = [None] * len(events), {"status": "off", "detail": f"{exc}"[:200]}
     for e, emb, llm in zip(events, embed_results, llm_results):
-        subs, fields, score, basis = classify(e, emb if emb and emb[0] != "neg" else None, llm)
-        e.update(subfields=subs, fields=fields, score=score, basis=basis)
+        subs, fields, basis = classify(e, emb if emb and emb[0] != "neg" else None, llm)
+        e.update(subfields=subs, fields=fields, basis=basis)
         if llm and llm.get("reason"):
             e["reason"] = llm["reason"]
-        if e["priority"]:
-            e["score"] = max(e["score"], 60)
     return status
 
 
+def rank_all(events, profiles):
+    """One relevance score per research profile; `score` is the default's."""
+    for e in events:
+        e["scores"] = {p.id: P.pinned_score(p.score(e["subfields"], e.get("region"),
+                                                    e.get("type"), e["basis"]),
+                                            e["priority"])
+                       for p in profiles}
+        e["score"] = e["scores"][profiles.default]
+
+
 # ---------------------------------------------------------------------------
-def notifications(events, prev_ids, health):
+def notifications(health):
+    """Maintainer alert: a source that newly stopped returning events. (No
+    personal "events you should see" notices: the site serves many profiles.)"""
     os.makedirs(NOTIFY_DIR, exist_ok=True)
     for f in os.listdir(NOTIFY_DIR):
         os.remove(os.path.join(NOTIFY_DIR, f))
-    t = today().isoformat()
-
-    def line(e):
-        where = e["location"] or e["region"]
-        when = e["start_date"] or "date TBA"
-        dl = f" · **deadline {e['deadline']}**" if e.get("deadline") else ""
-        sf = ", ".join(T.SUBFIELDS[s][1] for s in e["subfields"][:2])
-        return (f"- **[{e['title']}]({e['url']})** — {e['type']}, {where}, {when}{dl}  \n"
-                f"  _{sf or 'unclassified'} · relevance {e['score']}_")
-
-    # urgent: brand-new AND (very relevant, or local and relevant, or pinned)
-    if prev_ids:
-        urgent = [e for e in events if e["id"] not in prev_ids and (
-            e["priority"] or e["score"] >= T.URGENT_MIN_SCORE or
-            (e["region"] == "bengaluru" and e["score"] >= T.NOTIFY_MIN_SCORE))]
-        if urgent:
-            urgent.sort(key=lambda e: (not e["priority"], -e["score"]))
-            extra = len(urgent) - 25
-            with open(os.path.join(NOTIFY_DIR, "urgent.md"), "w") as f:
-                f.write(f"{len(urgent)} new event(s) you should see now.\n\n")
-                f.write("\n".join(line(e) for e in urgent[:25]))
-                if extra > 0:
-                    f.write(f"\n\n…and {extra} more — open the site and sort by "
-                            f"'recently found'.")
-
-    # weekly digest (Mondays, or forced)
-    if os.environ.get("EH_DIGEST") or today().weekday() == 0:
-        week = (today() - dt.timedelta(days=7)).isoformat()
-        fresh = [e for e in events if e.get("first_seen", t) >= week
-                 and e["score"] >= T.NOTIFY_MIN_SCORE]
-        soon_dl = [e for e in events if e.get("deadline") and t <= e["deadline"] <=
-                   (today() + dt.timedelta(days=21)).isoformat() and e["score"] >= T.NOTIFY_MIN_SCORE]
-        if fresh or soon_dl:
-            parts = [f"Weekly digest — {len(fresh)} new relevant event(s) found in the last 7 days.\n"]
-            if soon_dl:
-                parts.append("## Deadlines in the next 3 weeks\n" +
-                             "\n".join(line(e) for e in sorted(soon_dl, key=lambda e: e["deadline"])))
-            for fid, flabel in T.FIELDS.items():
-                grp = [e for e in fresh if e["fields"] and e["fields"][0] == fid]
-                if grp:
-                    parts.append(f"## {flabel}\n" + "\n".join(
-                        line(e) for e in sorted(grp, key=lambda e: (-e["score"], e["start_date"] or ""))))
-            with open(os.path.join(NOTIFY_DIR, "digest.md"), "w") as f:
-                f.write("\n\n".join(parts))
-
-    # source health: only when something newly breaks (no daily nagging)
     broken = [h for h in health if h["status"] in ("error", "empty", "stale")
               and h.get("previous") not in ("error", "empty", "stale")]
     if broken:
@@ -321,11 +287,13 @@ def notifications(events, prev_ids, health):
 
 
 def main():
+    profiles = P.load()                    # a broken profiles.yaml stops the run early
     prev = load_previous()
     prev_events = {e["id"]: e for e in prev.get("events", []) if "id" in e}
     raw, health = run_sources(prev.get("health"), prev.get("events"))
     events = dedupe(normalise(raw))
     status = classify_all(events)
+    rank_all(events, profiles)
 
     t = today().isoformat()
     for e in events:
@@ -342,12 +310,13 @@ def main():
     events.sort(key=lambda e: (not e["priority"], e["start_date"] or "9999", -e["score"]))
     os.makedirs(os.path.dirname(EVENTS), exist_ok=True)
     with open(EVENTS, "w") as f:
-        json.dump({"version": 5.1,
+        json.dump({"version": 6,
                    "generated": dt.datetime.now(dt.timezone.utc).isoformat(),
                    "taxonomy": T.export_for_frontend(),
+                   "profiles": P.export_for_frontend(profiles),
                    "health": health, "classifiers": status,
                    "events": events}, f, ensure_ascii=False, separators=(",", ":"))
-    notifications(events, set(prev_events), health)
+    notifications(health)
     n_cls = sum(1 for e in events if e["fields"])
     print(f"\nWrote {len(events)} events ({n_cls} classified) -> docs/events.json")
     print("Classifiers:", json.dumps(status))
