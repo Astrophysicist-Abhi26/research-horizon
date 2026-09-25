@@ -216,13 +216,14 @@ footer{border-top:1px solid var(--line);padding:22px 0 40px;color:var(--muted);f
       <option value="light">Always light</option>
     </select>
     <select id="bgMode" aria-label="Background style">
-      <option value="poster">Cosmic poster (default)</option>
+      <option value="poster">Science poster, new each visit (default)</option>
       <option value="starfield">Starfield only</option>
       <option value="custom">My own image</option>
       <option value="plain">Plain dark</option>
     </select>
     <input type="file" id="bgFile" accept="image/*" hidden>
     <button class="reset" id="bgPick" style="margin-top:8px" hidden>Choose image from this device</button>
+    <button class="reset" id="bgShuffle" style="margin-top:8px" title="Draw a new poster; your research profile's fields are more likely">Shuffle background</button>
 
     <button class="reset" id="reset">Reset all filters</button>
   </aside>
@@ -257,6 +258,7 @@ footer{border-top:1px solid var(--line);padding:22px 0 40px;color:var(--muted);f
   (<code>scraper/institutes.yaml</code>).</p>
 </div></footer>
 
+<script src="bg.js"></script>
 <script>
 "use strict";
 const $=id=>document.getElementById(id);
@@ -336,6 +338,8 @@ function setProfile(id,chosen){   // chosen: switched by hand in the picker
     d.open=ff.has(f);d.classList.toggle("dim",!weighted);
     d.title=weighted?"":"Not part of this profile: its events score 0";
   });
+  window.__bgReady=true;
+  if(window.__applyBg)window.__applyBg(!!chosen);   // background follows the profile's fields
 }
 
 function renderHealth(data){
@@ -476,6 +480,7 @@ function render(resetPage){
 
 fetch("events.json",{cache:"no-cache"}).then(r=>{if(!r.ok)throw new Error("events.json not found ("+r.status+")");return r.json()})
 .then(init).catch(err=>{$("grid").innerHTML="";$("empty").hidden=false;
+  window.__bgReady=true;if(window.__applyBg)window.__applyBg();
   $("empty").textContent="Could not load events: "+err.message+". Trigger the 'Update events' workflow in the Actions tab.";});
 
 /* ---------- theme manager: auto follows the device day/night setting ---------- */
@@ -504,24 +509,41 @@ applyTheme();
 const layer=document.getElementById("bgLayer"),
       modeSel=document.getElementById("bgMode"),
       pick=document.getElementById("bgPick"),
+      shuffle=document.getElementById("bgShuffle"),
       file=document.getElementById("bgFile");
-function apply(){
-  const mode=localStorage.getItem("rh-bg-mode")||"poster";
+let size=[0,0];
+function poster(reseed){   // generated science poster, sized to the window (docs/bg.js)
+  if(!window.RHBackground)return "none";
+  size=[innerWidth,innerHeight];
+  const theme=document.documentElement.dataset.theme==="light"?"light":"dark";
+  const avoid=[...document.querySelectorAll("header .wrap > *")].map(el=>{   // keep the header text clear:
+    const rg=document.createRange();rg.selectNodeContents(el);                // the text itself, not the full-width block
+    const b=rg.getBoundingClientRect(),y=scrollY;return [b.left-10,b.top+y-8,b.right+10,b.bottom+y+8]}).filter(b=>b[2]>b[0]);
+  return `url("${RHBackground.url({theme,w:innerWidth,h:innerHeight,reseed,avoid,
+    weight:t=>(typeof PROF!=="undefined"&&PROF&&PROF.weights)?W(t):50})}")`;
+}
+function apply(reseed){
+  const mode=lsGet("rh-bg-mode")||"poster";
   modeSel.value=mode; pick.hidden=mode!=="custom";
+  const img=mode==="custom"&&lsGet("rh-bg-img");
+  shuffle.hidden=!(mode==="poster"||(mode==="custom"&&!img));
   layer.classList.toggle("custom",mode==="custom");
   const sky=document.getElementById("sky");
   if(sky)sky.style.display=(mode==="plain")?"none":"";
-  const poster=(document.documentElement.dataset.theme==="light")
-    ? "url(bg-cosmos-light.svg)" : "url(bg-cosmos.svg)";
-  if(mode==="poster")layer.style.backgroundImage=poster;
-  else if(mode==="custom"){
-    const img=localStorage.getItem("rh-bg-img");
-    layer.style.backgroundImage=img?`url(${img})`:poster;
-  } else layer.style.backgroundImage="none";
+  if(mode==="poster"||(mode==="custom"&&!img)){
+    if(window.__bgReady)layer.style.backgroundImage=poster(reseed);   // drawn once the profile is known
+  }
+  else if(img)layer.style.backgroundImage=`url(${img})`;
+  else layer.style.backgroundImage="none";
 }
+shuffle.addEventListener("click",()=>apply(true));
+let rt=0;
+addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(()=>{   // redraw for a new shape, same poster
+  if(Math.abs(innerWidth-size[0])>size[0]*.15||Math.abs(innerHeight-size[1])>size[1]*.25)apply(false)},300)});
+setTimeout(()=>{if(!window.__bgReady){window.__bgReady=true;apply()}},2500);   // never stay blank
 modeSel.addEventListener("input",()=>{
-  localStorage.setItem("rh-bg-mode",modeSel.value);
-  if(modeSel.value==="custom"&&!localStorage.getItem("rh-bg-img"))file.click();
+  try{localStorage.setItem("rh-bg-mode",modeSel.value)}catch(e){}
+  if(modeSel.value==="custom"&&!lsGet("rh-bg-img"))file.click();
   apply();
 });
 pick.addEventListener("click",()=>file.click());
