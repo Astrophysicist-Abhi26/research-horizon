@@ -10,11 +10,12 @@ aggregators. So there is **one database and many rankings**. A condensed-matter 
 and a cosmologist see the same events, each in their own order, and nobody's field is
 hidden from anybody.
 
-> **Status:** early development, private. Physics and astronomy are covered today;
-> mathematics, computer science, engineering, biology and chemistry come next
-> (see [ROADMAP.md](ROADMAP.md)). The site is built and tested on every run, and it goes
-> live at `https://astrophysicist-abhi26.github.io/research-horizon/` once GitHub Pages is
-> switched on (see [Publishing](#publishing)).
+**Live site:** https://astrophysicist-abhi26.github.io/research-horizon/ (updated daily at
+08:00 IST)
+
+> **Status:** early development. Physics and astronomy are covered today; mathematics,
+> computer science, engineering, biology and chemistry come next (see
+> [ROADMAP.md](ROADMAP.md)).
 
 ## Research profiles
 
@@ -116,15 +117,15 @@ that is mislabelled. See [CONTRIBUTING.md](CONTRIBUTING.md). In short:
 | suggest or tune a research profile | open a **Research profile** issue, or edit `scraper/profiles.yaml` |
 | fix a mislabelled event | add `["its title", correct.subfield]` to `scraper/labels.yaml` |
 
-## Publishing
+## Publishing your own copy
 
-1. **Settings → Pages → Build and deployment → Source: GitHub Actions.** On the free GitHub
-   plan this needs a **public** repository; private repositories need a paid plan for Pages.
-2. **Actions → Update events → Run workflow.** The site appears at
+1. Fork this repository (it must be public for GitHub Pages on the free plan).
+2. **Settings → Pages → Build and deployment → Source: GitHub Actions.**
+3. **Actions → Update events → Run workflow.** The site appears at
    `https://<owner>.github.io/<repository>/` a few minutes later. Links on the page follow
    whichever repository serves it, so a fork works unchanged.
 
-Until Pages is switched on, every run still scrapes, tests, tags and ranks everything; it
+If Pages is not switched on, every run still scrapes, tests, tags and ranks everything; it
 just skips the publish step and says so in the run summary.
 
 **Optional: Claude classification.** Add a repository secret named `ANTHROPIC_API_KEY` under
