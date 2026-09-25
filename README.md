@@ -149,3 +149,8 @@ Research Horizon grew out of
 cosmology and astrophysics at IISc Bengaluru. Its ranking lives on unchanged as the
 **Cosmology & ML for science** profile; a test checks that it reproduces Event Horizon's
 scores exactly.
+
+## License
+
+[MIT](LICENSE). Event data belongs to the institutes and aggregators it comes from;
+each card links to the original announcement.
