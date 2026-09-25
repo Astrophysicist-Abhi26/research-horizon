@@ -47,6 +47,11 @@ h1 .h{color:var(--amber)}
 .stats b{color:var(--amber);font-size:18px;display:block;font-weight:500}
 .stats span{color:var(--muted)}
 .gen{font-family:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;color:var(--muted);margin-top:14px}
+.profile{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-top:18px}
+.profile label{font-family:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;font-size:13px;color:var(--muted)}
+.profile select{width:auto;max-width:100%;margin:0;font-family:"Space Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:15px;font-weight:500;border-color:var(--amber);padding:6px 10px}
+.blurb{color:var(--muted);font-size:13.5px;max-width:72ch;margin-top:6px}
 .gen .bad{color:var(--warn)}
 
 main{display:grid;grid-template-columns:284px 1fr;gap:26px;padding:26px 0 70px}
@@ -87,6 +92,7 @@ button.reset:hover{border-color:var(--amber);color:var(--amber)}
 .ftree summary label{flex:1;display:flex;gap:8px;align-items:center;font-weight:500;color:var(--fc)}
 .ftree .subs{padding:2px 0 4px 18px}
 .ftree .subs label.ck{font-size:13.5px}
+.ftree details.dim summary label,.ftree details.dim .subs{opacity:.5}
 .f-cosmo{--fc:var(--cosmo)}.f-astro{--fc:var(--astro)}.f-ai{--fc:var(--ai)}.f-physics{--fc:var(--physics)}.f-math{--fc:var(--math)}
 
 .toolbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px}
@@ -147,8 +153,13 @@ footer{border-top:1px solid var(--line);padding:22px 0 40px;color:var(--muted);f
   <h1>Research <span class="h">Horizon</span></h1>
   <p class="tagline">Conferences, schools, workshops and talks across physics, astronomy, mathematics
   and AI/ML — one shared database, collected daily and classified by field.</p>
+  <div class="profile">
+    <label for="profile">Ranked for</label>
+    <select id="profile" aria-describedby="profileBlurb"></select>
+  </div>
+  <p class="blurb" id="profileBlurb"></p>
   <div class="stats">
-    <button id="qCosmo" title="Show only cosmology"><b id="sCosmo">–</b><span>cosmology</span></button>
+    <button id="qFocus" title="Show only this profile's focus"><b id="sFocus">–</b><span id="focusLbl">in focus</span></button>
     <button id="qBlr" title="Show only Bengaluru"><b id="sBlr">–</b><span>in Bengaluru</span></button>
     <button id="qIndia" title="Show only India"><b id="sIndia">–</b><span>in India</span></button>
     <button id="qNew" title="Show only new this week"><b id="sNew">–</b><span>new this week</span></button>
@@ -171,7 +182,7 @@ footer{border-top:1px solid var(--line);padding:22px 0 40px;color:var(--muted);f
 
     <h2>Minimum relevance</h2>
     <input type="range" id="minScore" min="0" max="100" step="5" value="20" aria-label="Minimum relevance score">
-    <div class="minrel"><span>fit with your research</span><b id="minScoreV">20</b></div>
+    <div class="minrel"><span>fit with the chosen profile</span><b id="minScoreV">20</b></div>
     <p class="hint">Fields decide <em>what</em> you see; relevance only ranks and trims.</p>
 
     <h2>Where</h2>
@@ -222,9 +233,9 @@ footer{border-top:1px solid var(--line);padding:22px 0 40px;color:var(--muted);f
       <span class="count">showing <b id="count">0</b> of <span id="countAll">0</span></span>
       <label style="margin-left:auto">Sort by
         <select id="sort">
+          <option value="focus" id="optFocus" selected>focus first, then date</option>
           <option value="date">start date</option>
           <option value="score">relevance</option>
-          <option value="cosmo">cosmology first, then date</option>
           <option value="deadline">application deadline</option>
           <option value="found">recently found</option>
         </select>
@@ -254,6 +265,12 @@ const safeUrl=u=>/^https?:\/\//i.test(u||"")?u:"#";
 const fmt=d=>d?new Date(d+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}):"date TBA";
 const PAGE=90;
 let EVENTS=[],TAX=null,FIELD_LABEL={},SUB_LABEL={},SUB_PARENT={},shown=PAGE,WEEK_AGO="",TODAY="";
+let PROFILES=[],PROF=null;   // research profiles: the same events, ranked per profile
+const S=e=>e.scores?(e.scores[PROF.id]??0):(e.score??0);                  // relevance for the profile
+const W=t=>{const w=PROF.weights||{};return t in w?w[t]:(SUB_PARENT[t] in w?w[SUB_PARENT[t]]:0)};
+const inFocus=e=>(e.subfields||[]).some(t=>PROF.focus.includes(t)||PROF.focus.includes(SUB_PARENT[t]));
+const pinned=e=>!!e.priority&&(!(e.subfields||[]).length||S(e)>0);        // pinned where relevant
+const lsGet=k=>{try{return localStorage.getItem(k)}catch(e){return null}};
 const STORE="rh-filters";
 /* links follow the repository the site is served from, so forks work unchanged */
 (()=>{const m=location.hostname.match(/^([^.]+)\.github\.io$/i),seg=location.pathname.split("/").filter(Boolean)[0];
@@ -267,7 +284,7 @@ function checkList(container,values,counts,group,labeler){
 function buildFieldTree(){
   const cnt={},fcnt={};
   EVENTS.forEach(e=>{(e.subfields||[]).forEach(s=>cnt[s]=(cnt[s]||0)+1);(e.fields||[]).forEach(f=>fcnt[f]=(fcnt[f]||0)+1)});
-  $("fField").innerHTML=TAX.fields.map(f=>`<details class="f-${f.id}" ${f.id==="cosmo"?"open":""}>
+  $("fField").innerHTML=TAX.fields.map(f=>`<details class="f-${f.id}" data-f="${f.id}">
     <summary><span class="tw" aria-hidden="true">›</span><label><input type="checkbox" data-field="${f.id}" checked>
       ${esc(f.label)}</label><span class="n" style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:11.5px;color:var(--muted)">${fcnt[f.id]||0}</span></summary>
     <div class="subs">${f.subfields.map(s=>`<label class="ck"><input type="checkbox" data-group="sub" data-parent="${f.id}" value="${s.id}" checked>
@@ -290,11 +307,35 @@ function saveState(){
 function loadState(){
   let st;try{st=JSON.parse(localStorage.getItem(STORE)||"null")}catch(e){}
   if(!st)return;
-  $("q").value=st.q||"";$("minScore").value=st.min??20;$("sort").value=st.sort||"date";$("showUncl").checked=!!st.uncl;
+  $("q").value=st.q||"";$("minScore").value=st.min??20;$("sort").value=st.sort||"focus";$("showUncl").checked=!!st.uncl;
   const r=document.querySelector(`input[name=region][value="${st.region}"]`);if(r)r.checked=true;
   (st.off||[]).forEach(k=>{const[g,v]=k.split("|");const el=document.querySelector(`input[data-group="${g}"][value="${CSS.escape(v)}"]`);if(el)el.checked=false});
   document.querySelectorAll("[data-field]").forEach(fb=>{const subs=[...document.querySelectorAll(`[data-parent="${fb.dataset.field}"]`)];
     fb.checked=subs.some(x=>x.checked);fb.indeterminate=fb.checked&&!subs.every(x=>x.checked)});
+}
+
+function setProfile(id,chosen){   // chosen: switched by hand in the picker
+  PROF=PROFILES.find(p=>p.id===id)||PROFILES[0];
+  try{localStorage.setItem("rh-profile",PROF.id)}catch(e){}
+  try{const u=new URL(location.href);u.searchParams.set("p",PROF.id);history.replaceState(null,"",u)}catch(e){}
+  $("profile").value=PROF.id;
+  $("profileBlurb").textContent=PROF.blurb||"";
+  const focus=(PROF.focus||[]).length>0;
+  $("qFocus").hidden=!focus;$("optFocus").hidden=!focus;$("optFocus").disabled=!focus;
+  if(chosen&&focus)$("sort").value="focus";                 // a new profile starts with its own focus first
+  if(!focus&&$("sort").value==="focus")$("sort").value="date";
+  if(focus){
+    $("focusLbl").textContent=PROF.focus_label||"in focus";
+    $("qFocus").title="Show only "+(PROF.focus_label||"this profile's focus");
+    $("optFocus").textContent=(PROF.focus_label||"focus")+" first, then date";
+    $("sFocus").textContent=EVENTS.filter(e=>(e.fields||[]).length&&inFocus(e)).length;
+  }
+  const ff=new Set((PROF.focus||[]).map(n=>n in FIELD_LABEL?n:SUB_PARENT[n]));
+  document.querySelectorAll("#fField details").forEach(d=>{
+    const f=d.dataset.f,weighted=W(f)>0||[...d.querySelectorAll("[data-group=sub]")].some(c=>W(c.value)>0);
+    d.open=ff.has(f);d.classList.toggle("dim",!weighted);
+    d.title=weighted?"":"Not part of this profile: its events score 0";
+  });
 }
 
 function renderHealth(data){
@@ -313,6 +354,12 @@ function renderHealth(data){
 function init(data){
   if(!data.taxonomy){throw new Error("events.json is from an older version — run the scraper once")}
   EVENTS=data.events||[];TAX=data.taxonomy;
+  PROFILES=(data.profiles&&(data.profiles.list||[]).length)?data.profiles.list
+    :[{id:"default",label:"Default ranking",blurb:"",focus:[],focus_label:"",weights:{}}];
+  const dflt=data.profiles&&data.profiles.default;
+  PROF=PROFILES.find(p=>p.id===(new URLSearchParams(location.search).get("p")||lsGet("rh-profile")||dflt))
+    ||PROFILES.find(p=>p.id===dflt)||PROFILES[0];
+  $("profile").innerHTML=PROFILES.map(p=>`<option value="${esc(p.id)}">${esc(p.label)}</option>`).join("");
   TAX.fields.forEach(f=>{FIELD_LABEL[f.id]=f.label;f.subfields.forEach(s=>{SUB_LABEL[s.id]=s.label;SUB_PARENT[s.id]=f.id})});
   TODAY=new Date().toISOString().slice(0,10);
   WEEK_AGO=new Date(Date.now()-7*864e5).toISOString().slice(0,10);
@@ -321,7 +368,6 @@ function init(data){
     (bad?` · <span class="bad">${bad} source(s) failing — see Source health below</span>`:"");
   const cls=EVENTS.filter(e=>(e.fields||[]).length);
   $("sTotal").textContent=cls.length;
-  $("sCosmo").textContent=cls.filter(e=>e.fields.includes("cosmo")).length;
   $("sBlr").textContent=cls.filter(e=>e.region==="bengaluru").length;
   $("sIndia").textContent=cls.filter(e=>e.region==="bengaluru"||e.region==="india").length;
   $("sNew").textContent=cls.filter(e=>e.first_seen>=WEEK_AGO).length;
@@ -338,6 +384,8 @@ function init(data){
   checkList($("fCountry"),Object.keys(countries).sort((a,b)=>a==="India"?-1:b==="India"?1:a.localeCompare(b)),countries,"country");
   checkList($("fSource"),Object.keys(srcs).sort(),srcs,"source");
   loadState();
+  setProfile(PROF.id);
+  $("profile").addEventListener("input",()=>{setProfile($("profile").value,true);render(true)});
 
   document.querySelectorAll("#filters input,#sort").forEach(el=>el.addEventListener("input",()=>render(true)));
   $("more").addEventListener("click",()=>{shown+=PAGE;render(false)});
@@ -348,8 +396,10 @@ function init(data){
     document.querySelector('input[name=region][value=all]').checked=true;render(true);
   });
   const quick=(fn)=>()=>{$("reset").click();fn();render(true);window.scrollTo({top:$("grid").offsetTop-80,behavior:"smooth"})};
-  $("qCosmo").addEventListener("click",quick(()=>{document.querySelectorAll("[data-field]").forEach(fb=>{
-    if(fb.dataset.field!=="cosmo"){fb.checked=false;document.querySelectorAll(`[data-parent="${fb.dataset.field}"]`).forEach(c=>c.checked=false)}})}));
+  $("qFocus").addEventListener("click",quick(()=>{
+    document.querySelectorAll("[data-group=sub]").forEach(c=>{c.checked=PROF.focus.includes(c.value)||PROF.focus.includes(c.dataset.parent)});
+    document.querySelectorAll("[data-field]").forEach(fb=>{const subs=[...document.querySelectorAll(`[data-parent="${fb.dataset.field}"]`)];
+      fb.checked=subs.some(x=>x.checked);fb.indeterminate=fb.checked&&!subs.every(x=>x.checked)})}));
   $("qBlr").addEventListener("click",quick(()=>{document.querySelector('input[name=region][value=bengaluru]').checked=true}));
   $("qIndia").addEventListener("click",quick(()=>{document.querySelector('input[name=region][value=india]').checked=true}));
   $("qNew").addEventListener("click",quick(()=>{$("onlyNew").checked=true}));
@@ -368,7 +418,7 @@ function render(resetPage){
     SUB=checked("sub"),TY=checked("type"),CO=checked("country"),SR=checked("source");
   let rows=EVENTS.filter(e=>{
     const subs=e.subfields||[];
-    if(subs.length){ if(!subs.some(s=>SUB.has(s)))return false; if(e.score<minS&&!e.priority)return false; }
+    if(subs.length){ if(!subs.some(s=>SUB.has(s)))return false; if(S(e)<minS&&!pinned(e))return false; }
     else if(!uncl&&!e.priority)return false;
     if(q&&!(`${e.title} ${e.location||""} ${e.speaker||""} ${e.description||""}`).toLowerCase().includes(q))return false;
     if(from&&(e.end_date||e.start_date||"9999")<from)return false;
@@ -384,29 +434,31 @@ function render(resetPage){
     if(!(e.sources||[e.source]).some(s=>SR.has(s)))return false;
     return true;
   });
-  const sort=$("sort").value,byDate=(a,b)=>(a.start_date||"9999").localeCompare(b.start_date||"9999")||b.score-a.score;
-  rows.sort((a,b)=>(b.priority-a.priority)||(
-    sort==="score"?b.score-a.score:
+  const sort=$("sort").value,byDate=(a,b)=>(a.start_date||"9999").localeCompare(b.start_date||"9999")||S(b)-S(a);
+  rows.sort((a,b)=>(pinned(b)-pinned(a))||(
+    sort==="score"?S(b)-S(a):
     sort==="deadline"?(a.deadline||"9999").localeCompare(b.deadline||"9999"):
-    sort==="found"?(b.first_seen||"").localeCompare(a.first_seen||"")||b.score-a.score:
-    sort==="cosmo"?((b.fields||[]).includes("cosmo")-(a.fields||[]).includes("cosmo"))||byDate(a,b):byDate(a,b)));
+    sort==="found"?(b.first_seen||"").localeCompare(a.first_seen||"")||S(b)-S(a):
+    sort==="focus"?(inFocus(b)-inFocus(a))||byDate(a,b):byDate(a,b)));
   saveState();
   $("count").textContent=rows.length;
   $("empty").hidden=rows.length>0;
   if(!rows.length)$("empty").textContent=(region!=="all")
     ? "Nothing matches in this region with the current fields and relevance. Try lowering minimum relevance, or check Source health below — a failing institute page means fewer local events."
-    : "Nothing matches these filters. Lower the minimum relevance or re-tick a field.";
+    : "Nothing matches these filters. Lower the minimum relevance, re-tick a field, or choose another research profile.";
   const soon=new Date(Date.now()+21*864e5).toISOString().slice(0,10);
   $("grid").innerHTML=rows.slice(0,shown).map(e=>{
-    const f0=(e.fields||[])[0]||"";
+    const tags=(e.subfields||[]).slice().sort((x,y)=>W(y)-W(x));   // what matters to this profile first
+    const f0=tags.length?SUB_PARENT[tags[0]]:"",sc=S(e);
+    const why=tags.filter(t=>W(t)>0).slice(0,3).map(t=>`${SUB_LABEL[t]||t} ${W(t)}`).join(" · ");
     const range=e.start_date?fmt(e.start_date)+(e.end_date&&e.end_date!==e.start_date?" → "+fmt(e.end_date):""):"date TBA";
     const dl=e.deadline&&e.deadline>=TODAY?`<div class="deadline ${e.deadline<=soon?"soon":""}">deadline ${fmt(e.deadline)}</div>`:"";
-    const subChips=(e.subfields||[]).slice(0,3).map(s=>`<span class="chip fld f-${SUB_PARENT[s]}">${esc(SUB_LABEL[s]||s)}</span>`).join("");
+    const subChips=tags.slice(0,3).map(s=>`<span class="chip fld f-${SUB_PARENT[s]}">${esc(SUB_LABEL[s]||s)}</span>`).join("");
     const here=e.region==="bengaluru"?'<span class="chip here">Bengaluru</span>':e.region==="india"?'<span class="chip here">India</span>':"";
     const onl=e.online?'<span class="chip">online</span>':"";
     const place=[e.location,e.country&&e.location&&e.location.includes(e.country)?"":e.country].filter(Boolean).join(" · ");
     return `<article class="card f-${f0}">
-      <div class="dt">${range}${e.priority?'<span class="pin">pinned</span>':""}${e.first_seen>=WEEK_AGO?'<span class="new">new</span>':""}</div>
+      <div class="dt">${range}${pinned(e)?'<span class="pin">pinned</span>':""}${e.first_seen>=WEEK_AGO?'<span class="new">new</span>':""}</div>
       <h3><a href="${esc(safeUrl(e.url))}" target="_blank" rel="noopener">${esc(e.title)}</a></h3>
       <div class="loc">${esc(place||(e.online?"Online":"location TBA"))}</div>
       ${e.speaker?`<div class="who">${esc(e.speaker)}</div>`:""}
@@ -414,8 +466,8 @@ function render(resetPage){
       <div class="chips"><span class="chip">${esc(e.type)}</span>${subChips}${here}${onl}
         <span class="chip">${esc((e.sources||[e.source]).join(" + "))}</span></div>
       ${dl}
-      <div class="spec"><div class="lab"><span>relevance${e.subfields&&e.subfields.length?"":" · unclassified"}</span><b>${e.score}</b></div>
-        <div class="bar"><i style="--w:${e.score}%"></i></div></div>
+      <div class="spec"><div class="lab"><span>relevance${e.subfields&&e.subfields.length?"":" · unclassified"}</span><b title="${esc(PROF.label+(why?": "+why:""))}">${sc}</b></div>
+        <div class="bar"><i style="--w:${sc}%"></i></div></div>
     </article>`;
   }).join("");
   $("more").hidden=rows.length<=shown;

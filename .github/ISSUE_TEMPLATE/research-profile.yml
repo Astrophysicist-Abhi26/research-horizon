@@ -1,0 +1,51 @@
+name: Research profile
+description: Suggest a new research profile for your field, or changes to an existing one.
+title: "[Profile] "
+labels: ["profile"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A profile decides how the shared event list is **ranked**; it never hides what other people see. Profiles are named after research areas, not people. The available topics are listed in `scraper/taxonomy.py`; if yours is missing, say so — that is useful too.
+  - type: input
+    id: name
+    attributes:
+      label: Profile name
+      description: A research area, e.g. "Soft & biological physics".
+    validations:
+      required: true
+  - type: dropdown
+    id: change
+    attributes:
+      label: New profile or change to an existing one?
+      options:
+        - New profile
+        - Change an existing profile
+    validations:
+      required: true
+  - type: textarea
+    id: topics
+    attributes:
+      label: Topics, most important first
+      description: One per line. Mark anything that should be pushed down.
+      placeholder: |
+        topological phases of matter
+        strongly correlated systems
+        quantum information
+        mathematical physics (TQFT, CFT)
+        push down: astronomy
+    validations:
+      required: true
+  - type: textarea
+    id: examples
+    attributes:
+      label: Example events that should rank high
+      description: Titles or links of two or three events this profile should put near the top.
+  - type: checkboxes
+    id: prefs
+    attributes:
+      label: Preferences
+      options:
+        - label: Prefer events in Bengaluru / India
+        - label: Prefer schools and workshops
+        - label: Prefer online events
