@@ -1,11 +1,13 @@
 name: Update events
 
-# Scans every source and deploys the site straight to GitHub Pages.
-# It NEVER commits to the repository: the code on `main` changes only when
-# you push. The event database lives only in the deployed site.
+# Scans every source, tags and ranks the events, and publishes the site on
+# GitHub Pages. It NEVER commits to the repository: the code on `main` changes
+# only when you push. The event database lives only in the deployed site.
 #
-# One-time setting required: Settings -> Pages -> Build and deployment ->
-# Source: "GitHub Actions".
+# Publishing needs Settings -> Pages -> Build and deployment -> Source:
+# "GitHub Actions" (a private repository needs a paid GitHub plan for Pages).
+# Until then every run still scrapes, tests and builds the site, and simply
+# skips the publish step.
 
 on:
   schedule:
@@ -33,11 +35,22 @@ jobs:
     if: github.event_name != 'issues' || contains(github.event.issue.labels.*.name, 'add-event') || github.event.label.name == 'add-event'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
+    outputs:
+      pages: ${{ steps.pages.outputs.enabled }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Is GitHub Pages switched on?
+        id: pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/${GITHUB_REPOSITORY}/pages" --silent 2>/dev/null; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::GitHub Pages is not switched on, so this run builds and tests the site but does not publish it. To publish: Settings -> Pages -> Source: GitHub Actions (a private repository needs a paid GitHub plan)."
+          fi
 
       - uses: actions/setup-python@v5
         with:
@@ -65,6 +78,7 @@ jobs:
       # committed file. If the site is unreachable the run still works; events
       # are simply all treated as new once.
       - name: Restore previous state from the live site
+        if: steps.pages.outputs.enabled == 'true'
         run: |
           owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           repo="${GITHUB_REPOSITORY#*/}"
@@ -87,12 +101,11 @@ jobs:
         run: python scraper/scrape.py
 
       - uses: actions/configure-pages@v5
+        if: steps.pages.outputs.enabled == 'true'
       - uses: actions/upload-pages-artifact@v3
+        if: steps.pages.outputs.enabled == 'true'
         with:
           path: docs
-      - name: Deploy to GitHub Pages
-        id: deploy
-        uses: actions/deploy-pages@v4
 
       # Maintainer alert -> GitHub Issue -> e-mail, only when a source newly
       # breaks. (Personal "events you should see" notices are not sent: this
@@ -112,3 +125,18 @@ jobs:
             gh issue create --label "$1" --title "$2 — $d" --body-file "$3"
           }
           post health "Source health alert" notify/health.md
+
+  # Publishing is its own job so that the github-pages environment is only
+  # used when Pages is switched on.
+  deploy:
+    needs: update
+    if: needs.update.outputs.pages == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
