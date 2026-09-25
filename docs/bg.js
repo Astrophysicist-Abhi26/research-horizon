@@ -1,105 +1,111 @@
 /* Research Horizon background: a new scientific "poster" on every visit.
 
-   Line-art motifs and equations are drawn from many fields. The research
-   profile the reader has chosen makes its own fields more likely (weight()
-   returns the profile's 0-100 interest in a taxonomy node). Everything is
-   drawn into one SVG, sized to the window and used as the page background at
-   low contrast, behind the content.
+   Two layers, both behind the page content:
+   - an SVG of line-art motifs (lattices, Feynman diagrams, knots, galaxies …),
+     sized to the window and used as the page's background image;
+   - the equations, typeset in LaTeX with KaTeX (docs/vendor/katex) in their
+     own layer, so they carry real fractions, integrals, sums and indices.
+   The research profile the reader has chosen makes its own fields more likely
+   (weight(node) returns the profile's 0-100 interest in a taxonomy node).
 
-   API: RHBackground.url({theme, w, h, weight, reseed}) -> "data:image/svg+xml,…"
-        same seed -> same composition (a theme change or resize keeps the poster;
-        reseed: true draws a new one). */
+   How strong the poster looks is set by the page: the "Background strength"
+   slider under Appearance, default DEFAULT_BG_STRENGTH in docs/index.html.
+
+   API: RHBackground.render({layer, math, theme, w, h, weight, avoid, reseed})
+        same seed -> same poster (a theme change or resize keeps it; reseed:
+        true draws a new one). */
 (function () {
 "use strict";
 
 const PAL = {
-  // op: overall strength. Kept low: the poster sits behind text and must never compete with it.
-  dark:  {a: "#F2B544", c: "#74D7E4", v: "#C792EA", t: "#EDEAF7", m: "#8E89A6", bg: "#0C0A16", k: "#000000", op: .62},
-  light: {a: "#C9861B", c: "#0E7C8C", v: "#8B5CB8", t: "#2A2342", m: "#6B6585", bg: "#F7F5FB", k: "#1B1730", op: .55},
+  // op balances the two themes; overall strength is the page's slider (layer opacity)
+  dark:  {a: "#F2B544", c: "#74D7E4", v: "#C792EA", t: "#EDEAF7", m: "#8E89A6", bg: "#0C0A16", k: "#000000", op: 1},
+  light: {a: "#C9861B", c: "#0E7C8C", v: "#8B5CB8", t: "#2A2342", m: "#6B6585", bg: "#F7F5FB", k: "#1B1730", op: .9},
 };
 const MONO = "Menlo,Consolas,'DejaVu Sans Mono','Liberation Mono',monospace";
 const SERIF = "'Cambria Math','STIX Two Math','STIX Two Text','Latin Modern Math','Times New Roman',serif";
+const EQ_OPACITY = .78;                                  // equations relative to the motifs
 
 // ---------------------------------------------------------------------------
-// Equations: [taxonomy node(s), equation, caption]
+// Equations: [taxonomy node(s), LaTeX (KaTeX), caption]
 // ---------------------------------------------------------------------------
 const EQUATIONS = [
-  ["cosmo.general", "H²(a) = (8πG/3)ρ − kc²/a² + Λc²/3", "Friedmann 1922"],
-  ["cosmo.general", "ds² = −c²dt² + a²(t)[dr²/(1−kr²) + r²dΩ²]", "FLRW metric"],
-  ["cosmo.de", "w(a) = w₀ + wₐ(1 − a)", "CPL dark energy"],
-  ["cosmo.de", "ä/a = −(4πG/3)(ρ + 3p/c²) + Λc²/3", "cosmic acceleration"],
-  ["cosmo.lss", "ξ(r) = ∫ P(k) (sin kr / kr) k² dk / 2π²", "two-point correlation"],
-  ["cosmo.lss", "δ̈ + 2Hδ̇ = 4πGρ̄ δ", "linear growth of structure"],
-  ["cosmo.early", "Δ²(k) = Aₛ (k/k*)^(nₛ−1)", "primordial power spectrum"],
-  ["cosmo.early", "T(z) = T₀ (1 + z)", "CMB temperature"],
-  ["cosmo.dm", "ρ(r) = ρₛ / [(r/rₛ)(1 + r/rₛ)²]", "NFW halo profile"],
-  ["astro.he", "rₛ = 2GM/c²", "Schwarzschild radius"],
-  ["astro.he", "T = ħc³ / (8πGMk_B)", "Hawking 1974"],
-  ["astro.he", "L_Edd = 4πGMm_p c / σ_T", "Eddington luminosity"],
-  ["astro.stellar", "L = 4πR²σT⁴", "Stefan–Boltzmann"],
-  ["astro.stellar", "M_Ch ≈ 1.44 M☉", "Chandrasekhar limit"],
-  ["astro.stellar", "dP/dr = −G m(r) ρ(r) / r²", "hydrostatic equilibrium"],
-  ["astro.galactic", "v²(r) = G M(<r) / r", "rotation curve"],
-  ["astro.general", "m − M = 5 log₁₀(d / 10 pc)", "distance modulus"],
-  [["phys.gr", "cosmo.general"], "Gμν + Λgμν = (8πG/c⁴) Tμν", "Einstein 1915"],
-  ["phys.gr", "□hμν = −(16πG/c⁴) Tμν", "gravitational waves"],
-  ["phys.gr", "S = k_B c³ A / (4Għ)", "Bekenstein–Hawking entropy"],
-  ["phys.hepth", "(iγ^μ ∂_μ − m) ψ = 0", "Dirac 1928"],
-  ["phys.hepth", "ℒ = −¼ Fᵃ_μν Fᵃ^μν", "Yang–Mills"],
-  ["phys.hepth", "Z = ∫ 𝒟φ e^(iS[φ]/ħ)", "path integral"],
-  ["phys.hepth", "∂_μ j^μ = 0", "Noether 1918"],
-  ["phys.hepth", "(□ + m²) φ = 0", "Klein–Gordon"],
-  ["phys.quantum", "iħ ∂ψ/∂t = Ĥψ", "Schrödinger 1926"],
-  ["phys.quantum", "Δx Δp ≥ ħ/2", "Heisenberg 1927"],
-  ["phys.quantum", "|ψ⟩ = α|0⟩ + β|1⟩", "a qubit"],
-  ["phys.quantum", "S(ρ) = −Tr ρ log ρ", "von Neumann entropy"],
-  ["phys.quantum", "|⟨AB⟩ + ⟨AB′⟩ + ⟨A′B⟩ − ⟨A′B′⟩| ≤ 2", "CHSH inequality"],
-  ["phys.quantum", "dρ/dt = −i[H, ρ] + Σ (LρL† − ½{L†L, ρ})", "Lindblad equation"],
-  ["phys.condmat", "H = −J Σ σᵢσⱼ − h Σ σᵢ", "Ising model"],
-  ["phys.condmat", "H = −t Σ c†ᵢσ cⱼσ + U Σ nᵢ↑ nᵢ↓", "Hubbard model"],
-  ["phys.condmat", "σ_xy = ν e²/h", "quantum Hall effect"],
-  ["phys.condmat", "C = (1/2π) ∫_BZ Ω(k) d²k", "Chern number"],
-  ["phys.condmat", "γ = i ∮ ⟨u(k)|∇ₖ u(k)⟩ · dk", "Berry phase"],
-  ["phys.condmat", "ψₖ(r) = e^(ik·r) uₖ(r)", "Bloch 1929"],
-  ["phys.condmat", "Δ = 2ħω_D e^(−1/N(0)V)", "BCS gap"],
-  ["phys.condmat", "Z = Σ e^(−βEᵢ)", "partition function"],
-  ["phys.condmat", "S = k_B ln W", "Boltzmann"],
-  ["phys.condmat", "f(E) = 1 / (e^((E−μ)/k_BT) + 1)", "Fermi–Dirac"],
-  ["phys.fluids", "∂u/∂t + (u·∇)u = −∇p/ρ + ν∇²u", "Navier–Stokes"],
-  ["phys.fluids", "E(k) ∝ ε^(2/3) k^(−5/3)", "Kolmogorov 1941"],
-  [["phys.fluids", "math.other"], "ẋ = σ(y − x),  ż = xy − βz", "Lorenz 1963"],
-  ["phys.general", "∇ × B = μ₀J + μ₀ε₀ ∂E/∂t", "Ampère–Maxwell"],
-  ["phys.general", "E² = (pc)² + (mc²)²", "energy–momentum relation"],
-  ["phys.general", "n₁ sin θ₁ = n₂ sin θ₂", "Snell's law"],
-  ["math.nt", "p(n) ~ e^(π√(2n/3)) / 4n√3", "Hardy · Ramanujan 1918"],
-  ["math.nt", "ζ(s) = Σ n⁻ˢ = Π (1 − p⁻ˢ)⁻¹", "Euler product"],
-  ["math.nt", "π(x) ~ x / ln x", "prime number theorem"],
-  ["math.nt", "aⁿ + bⁿ ≠ cⁿ,  n > 2", "Fermat–Wiles"],
-  ["math.geometry", "∫_M K dA + ∫_∂M k_g ds = 2πχ(M)", "Gauss–Bonnet"],
-  ["math.geometry", "Ric − ½Rg = 0", "Einstein manifolds"],
-  ["math.topology", "V − E + F = 2", "Euler 1758"],
-  ["math.topology", "∫_M dω = ∫_∂M ω", "Stokes' theorem"],
-  ["math.topology", "π₁(S¹) ≅ ℤ", "fundamental group"],
-  [["math.topology", "math.mathphys"], "ind D = ∫_M Â(M) ch(E)", "Atiyah–Singer"],
-  [["math.mathphys", "phys.hepth"], "Z(M) = ∫ 𝒟A e^(ik CS(A))", "Chern–Simons TQFT"],
-  ["math.mathphys", "[x, p] = iħ", "canonical commutation"],
-  ["math.algebra", "|G| = |H| · [G : H]", "Lagrange's theorem"],
-  ["math.algebra", "[Xᵢ, Xⱼ] = fᵢⱼᵏ Xₖ", "Lie algebra"],
-  ["math.analysis", "e^(iπ) + 1 = 0", "Euler"],
-  ["math.analysis", "∮ f(z)/(z − a) dz = 2πi f(a)", "Cauchy 1831"],
-  ["math.analysis", "F(ξ) = ∫ f(x) e^(−2πixξ) dx", "Fourier transform"],
-  ["math.analysis", "Σ 1/n² = π²/6", "Basel problem"],
-  ["math.probability", "dXₜ = μ dt + σ dWₜ", "Itô SDE"],
-  ["math.probability", "p(θ|D) = p(D|θ) p(θ) / p(D)", "Bayes"],
-  ["math.probability", "√n (X̄ₙ − μ) → 𝒩(0, σ²)", "central limit theorem"],
-  ["ai.general", "softmax(QKᵀ/√d) V", "attention, 2017"],
-  ["ai.general", "θ ← θ − η ∇L(θ)", "gradient descent"],
-  ["ai.general", "V(s) = maxₐ [r + γ Σ P(s′|s,a) V(s′)]", "Bellman equation"],
-  ["ai.theory", "log p(x) ≥ E_q[log p(x|z)] − KL(q‖p)", "evidence lower bound"],
-  ["ai.theory", "H(X) = −Σ p(x) log₂ p(x)", "Shannon 1948"],
-  ["ai.theory", "R(h) ≤ R_emp(h) + O(√(d/n))", "generalisation bound"],
-  ["ai.science", "p(θ | x_obs) ∝ p(x_obs | θ) p(θ)", "simulation-based inference"],
-  ["ai.science", "dx = [f − g² ∇ₓ log pₜ(x)] dt + g dW", "score-based diffusion"],
+  ["cosmo.general", String.raw`H^2(a) = \frac{8\pi G}{3}\,\rho - \frac{kc^2}{a^2} + \frac{\Lambda c^2}{3}`, "Friedmann 1922"],
+  ["cosmo.general", String.raw`ds^2 = -c^2\,dt^2 + a^2(t)\left[\frac{dr^2}{1-kr^2} + r^2\,d\Omega^2\right]`, "FLRW metric"],
+  ["cosmo.de", String.raw`w(a) = w_0 + w_a\,(1-a)`, "CPL dark energy"],
+  ["cosmo.de", String.raw`\frac{\ddot a}{a} = -\frac{4\pi G}{3}\left(\rho + \frac{3p}{c^2}\right) + \frac{\Lambda c^2}{3}`, "cosmic acceleration"],
+  ["cosmo.lss", String.raw`\xi(r) = \int \frac{k^2\,dk}{2\pi^2}\,P(k)\,\frac{\sin kr}{kr}`, "two-point correlation"],
+  ["cosmo.lss", String.raw`\ddot\delta + 2H\dot\delta = 4\pi G\,\bar\rho\,\delta`, "linear growth of structure"],
+  ["cosmo.early", String.raw`\Delta^2_{\mathcal R}(k) = A_s\left(\frac{k}{k_*}\right)^{n_s-1}`, "primordial power spectrum"],
+  ["cosmo.early", String.raw`T(z) = T_0\,(1+z)`, "CMB temperature"],
+  ["cosmo.dm", String.raw`\rho(r) = \frac{\rho_s}{\dfrac{r}{r_s}\left(1+\dfrac{r}{r_s}\right)^{2}}`, "NFW halo profile"],
+  ["astro.he", String.raw`r_s = \frac{2GM}{c^2}`, "Schwarzschild radius"],
+  ["astro.he", String.raw`T_H = \frac{\hbar c^3}{8\pi G M k_B}`, "Hawking 1974"],
+  ["astro.he", String.raw`L_{\mathrm{Edd}} = \frac{4\pi G M m_p c}{\sigma_T}`, "Eddington luminosity"],
+  ["astro.stellar", String.raw`L = 4\pi R^2\,\sigma T^4`, "Stefan–Boltzmann"],
+  ["astro.stellar", String.raw`M_{\mathrm{Ch}} \simeq 1.44\,M_\odot`, "Chandrasekhar limit"],
+  ["astro.stellar", String.raw`\frac{dP}{dr} = -\frac{G\,m(r)\,\rho(r)}{r^2}`, "hydrostatic equilibrium"],
+  ["astro.galactic", String.raw`v^2(r) = \frac{G\,M({<}\,r)}{r}`, "rotation curve"],
+  ["astro.general", String.raw`m - M = 5\log_{10}\frac{d}{10\,\mathrm{pc}}`, "distance modulus"],
+  [["phys.gr", "cosmo.general"], String.raw`G_{\mu\nu} + \Lambda g_{\mu\nu} = \frac{8\pi G}{c^4}\,T_{\mu\nu}`, "Einstein 1915"],
+  ["phys.gr", String.raw`\Box\,\bar h_{\mu\nu} = -\frac{16\pi G}{c^4}\,T_{\mu\nu}`, "gravitational waves"],
+  ["phys.gr", String.raw`S_{\mathrm{BH}} = \frac{k_B c^3 A}{4G\hbar}`, "Bekenstein–Hawking entropy"],
+  ["phys.hepth", String.raw`(i\gamma^\mu \partial_\mu - m)\,\psi = 0`, "Dirac 1928"],
+  ["phys.hepth", String.raw`\mathcal L = -\tfrac14\,F^a_{\mu\nu}F^{a\,\mu\nu} + \bar\psi\,(i\gamma^\mu D_\mu - m)\,\psi`, "Yang–Mills with fermions"],
+  ["phys.hepth", String.raw`Z = \int \mathcal D\phi\; e^{\,iS[\phi]/\hbar}`, "path integral"],
+  ["phys.hepth", String.raw`\partial_\mu j^\mu = 0`, "Noether 1918"],
+  ["phys.hepth", String.raw`(\Box + m^2)\,\phi = 0`, "Klein–Gordon"],
+  ["phys.quantum", String.raw`i\hbar\,\frac{\partial\psi}{\partial t} = \hat H\psi`, "Schrödinger 1926"],
+  ["phys.quantum", String.raw`\Delta x\,\Delta p \ge \frac{\hbar}{2}`, "Heisenberg 1927"],
+  ["phys.quantum", String.raw`|\psi\rangle = \alpha\,|0\rangle + \beta\,|1\rangle`, "a qubit"],
+  ["phys.quantum", String.raw`S(\rho) = -\operatorname{Tr}\,\rho\ln\rho`, "von Neumann entropy"],
+  ["phys.quantum", String.raw`\bigl|\langle AB\rangle + \langle AB'\rangle + \langle A'B\rangle - \langle A'B'\rangle\bigr| \le 2`, "CHSH inequality"],
+  ["phys.quantum", String.raw`\dot\rho = -\tfrac{i}{\hbar}[H,\rho] + \sum_k\Bigl(L_k\rho L_k^\dagger - \tfrac12\{L_k^\dagger L_k,\rho\}\Bigr)`, "Lindblad equation"],
+  ["phys.condmat", String.raw`H = -J\sum_{\langle ij\rangle}\sigma_i\sigma_j - h\sum_i\sigma_i`, "Ising model"],
+  ["phys.condmat", String.raw`H = -t\sum_{\langle ij\rangle,\sigma} c^\dagger_{i\sigma}c_{j\sigma} + U\sum_i n_{i\uparrow}n_{i\downarrow}`, "Hubbard model"],
+  ["phys.condmat", String.raw`\sigma_{xy} = \nu\,\frac{e^2}{h}`, "quantum Hall effect"],
+  ["phys.condmat", String.raw`C = \frac{1}{2\pi}\int_{\mathrm{BZ}}\Omega(\mathbf k)\,d^2k`, "Chern number"],
+  ["phys.condmat", String.raw`\gamma = i\oint \langle u_{\mathbf k}|\nabla_{\mathbf k}u_{\mathbf k}\rangle\cdot d\mathbf k`, "Berry phase"],
+  ["phys.condmat", String.raw`\psi_{\mathbf k}(\mathbf r) = e^{i\mathbf k\cdot\mathbf r}\,u_{\mathbf k}(\mathbf r)`, "Bloch 1929"],
+  ["phys.condmat", String.raw`\Delta = 2\hbar\omega_D\,e^{-1/N(0)V}`, "BCS gap"],
+  ["phys.condmat", String.raw`Z = \sum_i e^{-\beta E_i}`, "partition function"],
+  ["phys.condmat", String.raw`S = k_B\ln W`, "Boltzmann"],
+  ["phys.condmat", String.raw`f(E) = \frac{1}{e^{(E-\mu)/k_BT} + 1}`, "Fermi–Dirac"],
+  ["phys.fluids", String.raw`\frac{\partial\mathbf u}{\partial t} + (\mathbf u\cdot\nabla)\mathbf u = -\frac{\nabla p}{\rho} + \nu\nabla^2\mathbf u`, "Navier–Stokes"],
+  ["phys.fluids", String.raw`E(k) \propto \varepsilon^{2/3}\,k^{-5/3}`, "Kolmogorov 1941"],
+  [["phys.fluids", "math.other"], String.raw`\dot x = \sigma(y-x),\quad \dot y = x(\rho-z)-y,\quad \dot z = xy-\beta z`, "Lorenz 1963"],
+  ["phys.general", String.raw`\nabla\times\mathbf B = \mu_0\mathbf J + \mu_0\varepsilon_0\,\frac{\partial\mathbf E}{\partial t}`, "Ampère–Maxwell"],
+  ["phys.general", String.raw`E^2 = (pc)^2 + (mc^2)^2`, "energy–momentum relation"],
+  ["phys.general", String.raw`n_1\sin\theta_1 = n_2\sin\theta_2`, "Snell's law"],
+  ["math.nt", String.raw`p(n) \sim \frac{1}{4n\sqrt3}\,e^{\pi\sqrt{2n/3}}`, "Hardy–Ramanujan 1918"],
+  ["math.nt", String.raw`\zeta(s) = \sum_{n=1}^{\infty}\frac{1}{n^s} = \prod_{p}\frac{1}{1-p^{-s}}`, "Euler product"],
+  ["math.nt", String.raw`\pi(x) \sim \frac{x}{\ln x}`, "prime number theorem"],
+  ["math.nt", String.raw`a^n + b^n \neq c^n \quad (n > 2)`, "Fermat–Wiles"],
+  ["math.geometry", String.raw`\int_M K\,dA + \int_{\partial M} k_g\,ds = 2\pi\,\chi(M)`, "Gauss–Bonnet"],
+  ["math.geometry", String.raw`\mathrm{Ric}(g) = \lambda\,g`, "Einstein metrics"],
+  ["math.topology", String.raw`V - E + F = 2`, "Euler 1758"],
+  ["math.topology", String.raw`\int_M d\omega = \int_{\partial M}\omega`, "Stokes' theorem"],
+  ["math.topology", String.raw`\pi_1(S^1) \cong \mathbb Z`, "fundamental group"],
+  [["math.topology", "math.mathphys"], String.raw`\operatorname{ind} D = \int_M \hat A(M)\,\mathrm{ch}(E)`, "Atiyah–Singer"],
+  [["math.mathphys", "phys.hepth"], String.raw`S_{\mathrm{CS}} = \frac{k}{4\pi}\int_M \mathrm{tr}\Bigl(A\wedge dA + \tfrac23 A\wedge A\wedge A\Bigr)`, "Chern–Simons theory"],
+  ["math.mathphys", String.raw`[\hat x,\hat p] = i\hbar`, "canonical commutation"],
+  ["math.algebra", String.raw`|G| = |H|\,[G:H]`, "Lagrange's theorem"],
+  ["math.algebra", String.raw`[X_i, X_j] = f_{ij}{}^{k}\,X_k`, "Lie algebra"],
+  ["math.analysis", String.raw`e^{i\pi} + 1 = 0`, "Euler"],
+  ["math.analysis", String.raw`\oint_\gamma \frac{f(z)}{z-a}\,dz = 2\pi i\,f(a)`, "Cauchy 1831"],
+  ["math.analysis", String.raw`\hat f(\xi) = \int_{-\infty}^{\infty} f(x)\,e^{-2\pi i x\xi}\,dx`, "Fourier transform"],
+  ["math.analysis", String.raw`\sum_{n=1}^{\infty}\frac{1}{n^2} = \frac{\pi^2}{6}`, "Basel problem"],
+  ["math.probability", String.raw`dX_t = \mu\,dt + \sigma\,dW_t`, "Itô SDE"],
+  ["math.probability", String.raw`p(\theta\mid D) = \frac{p(D\mid\theta)\,p(\theta)}{p(D)}`, "Bayes"],
+  ["math.probability", String.raw`\sqrt{n}\,\bigl(\bar X_n - \mu\bigr) \xrightarrow{\;d\;} \mathcal N(0,\sigma^2)`, "central limit theorem"],
+  ["ai.general", String.raw`\mathrm{Attention}(Q,K,V) = \mathrm{softmax}\!\left(\frac{QK^{\top}}{\sqrt{d_k}}\right)V`, "attention, 2017"],
+  ["ai.general", String.raw`\theta_{t+1} = \theta_t - \eta\,\nabla_\theta \mathcal L(\theta_t)`, "gradient descent"],
+  ["ai.general", String.raw`V(s) = \max_a\Bigl[r(s,a) + \gamma\sum_{s'}P(s'\mid s,a)\,V(s')\Bigr]`, "Bellman equation"],
+  ["ai.theory", String.raw`\log p(x) \ge \mathbb E_{q(z)}\bigl[\log p(x\mid z)\bigr] - D_{\mathrm{KL}}\bigl(q\,\|\,p\bigr)`, "evidence lower bound"],
+  ["ai.theory", String.raw`H(X) = -\sum_x p(x)\log_2 p(x)`, "Shannon 1948"],
+  ["ai.theory", String.raw`R(h) \le \hat R_n(h) + O\Bigl(\sqrt{d/n}\Bigr)`, "generalisation bound"],
+  ["ai.science", String.raw`p(\theta\mid x_{\mathrm{obs}}) \propto p(x_{\mathrm{obs}}\mid\theta)\,p(\theta)`, "simulation-based inference"],
+  ["ai.science", String.raw`d\mathbf x = \bigl[\mathbf f(\mathbf x,t) - g(t)^2\,\nabla_{\mathbf x}\log p_t(\mathbf x)\bigr]dt + g(t)\,d\bar{\mathbf w}`, "score-based diffusion"],
 ];
 
 // ---------------------------------------------------------------------------
@@ -410,52 +416,80 @@ function compose({theme = "dark", w = 1600, h = 900, weight = () => 50, seed = 1
     }
   });
 
-  // equations
-  const nEq = Math.max(4, Math.min(12, Math.round(area / 150000)));
-  const fs0 = Math.max(15, Math.min(24, w / 68)), boxes = [];
-  // fields with many equations in the library must not crowd out the others
-  const perTag = {};
-  EQUATIONS.forEach(e => { const t = tagsOf(e[0])[0]; perTag[t] = (perTag[t] || 0) + 1; });
-  const eqs = pick(EQUATIONS, nEq * 2, e => weightOf(tagsOf(e[0]), weight) / Math.sqrt(perTag[tagsOf(e[0])[0]]), r);
-  let text = "";
-  for (const [, eq, cap] of eqs) {
-    if (boxes.length >= nEq) break;
-    // index notation (^, _) reads naturally in monospace; the rest mostly in italic serif
-    const fs = fs0 * (.85 + .35 * r()), serif = !/[\^_]/.test(eq) && r() < .75;
-    const bw = eq.length * fs * (serif ? .5 : .6), bh = fs * 2.1;
-    if (bw > w - 40) continue;
-    for (let tries = 0; tries < 150; tries++) {
-      const x = 20 + r() * (w - 40 - bw), y = 30 + fs + r() * (h - 60 - bh);
-      const box = [x - 12, y - fs - 8, x + bw + 12, y + fs * 1.1 + 10];
-      const clashBox = boxes.some(b => !(box[2] < b[0] || box[0] > b[2] || box[3] < b[1] || box[1] > b[3]));
-      const clashMot = placed.some(p => {
-        const nx = Math.max(box[0], Math.min(p.x, box[2])), ny = Math.max(box[1], Math.min(p.y, box[3]));
-        return Math.hypot(nx - p.x, ny - p.y) < p.e * .95;
-      });
-      if (clashBox || clashMot || boxHitsText(box)) continue;
-      boxes.push(box);
-      const col = r() < .72 ? P.t : [P.a, P.c, P.v][Math.floor(r() * 3)];
-      text += `<text x="${f(x)}" y="${f(y)}" font-size="${f(fs)}" fill="${col}" font-family="${serif ? SERIF : MONO}"${serif ? ' font-style="italic"' : ""}>${esc(eq)}</text>
-        <text x="${f(x)}" y="${f(y + fs * 1.05)}" font-size="${f(Math.max(10, fs * .52))}" fill="${P.m}" font-family="${MONO}">${esc(cap)}</text>`;
-      break;
-    }
-  }
-  parts.push(`<g opacity="${f(.5 * P.op)}">${text}</g>`);
-
   // readability fade toward the bottom
   parts.push(`<defs><linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${P.bg}" stop-opacity="0"/>
     <stop offset="100%" stop-color="${P.bg}" stop-opacity=".55"/></linearGradient></defs><rect width="${w}" height="${h}" fill="url(#fade)"/>`);
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" preserveAspectRatio="xMidYMid slice">${parts.join("")}</svg>`;
+  return {svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" preserveAspectRatio="xMidYMid slice">${parts.join("")}</svg>`,
+          placed, w, h};
+}
+
+// ---------------------------------------------------------------------------
+// Equations: typeset with KaTeX, measured, then placed where they fit
+// ---------------------------------------------------------------------------
+let mathJob = 0;
+function placeMath(math, {theme = "dark", w, h, weight = () => 50, seed = 1, avoid = [], placed = []}) {
+  const job = ++mathJob;
+  math.innerHTML = "";
+  if (!window.katex) {                                   // KaTeX still loading: try again once it is there
+    window.addEventListener("load", () => { if (job === mathJob && window.katex) placeMath(math, arguments[1]); }, {once: true});
+    return;
+  }
+  const P = PAL[theme] || PAL.dark, r = rng(seed ^ 0x5bd1e995);
+  const area = w * h, nEq = Math.max(3, Math.min(11, Math.round(area / 150000)));
+  const fs0 = Math.max(14, Math.min(21, w / 76));
+  const perTag = {};                                     // big fields must not crowd out the others
+  EQUATIONS.forEach(e => { const t = tagsOf(e[0])[0]; perTag[t] = (perTag[t] || 0) + 1; });
+  const cands = pick(EQUATIONS, nEq * 2, e => weightOf(tagsOf(e[0]), weight) / Math.sqrt(perTag[tagsOf(e[0])[0]]), r);
+  const els = cands.map(([, tex, cap]) => {
+    const el = document.createElement("div");
+    el.className = "eq";
+    el.style.cssText = `font-size:${f(fs0 * (.85 + .35 * r()))}px;color:${r() < .7 ? P.t : [P.a, P.c, P.v][Math.floor(r() * 3)]};` +
+                       `opacity:${f(EQ_OPACITY * P.op)};visibility:hidden;left:0;top:0`;
+    try {
+      el.innerHTML = window.katex.renderToString(tex, {throwOnError: false, output: "html"}) +
+                     `<div class="cap" style="color:${P.m}">${esc(cap)}</div>`;
+    } catch (e) { return null; }
+    math.appendChild(el);
+    return el;
+  }).filter(Boolean);
+  const fontsReady = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+  fontsReady.then(() => {
+    if (job !== mathJob) return;
+    const boxes = [], hits = (bx, list) => list.some(b => !(bx[2] < b[0] || bx[0] > b[2] || bx[3] < b[1] || bx[1] > b[3]));
+    for (const el of els) {
+      if (boxes.length >= nEq) { el.remove(); continue; }
+      const bw = el.offsetWidth, bh = el.offsetHeight;
+      let ok = false;
+      if (bw && bw < w - 40) for (let tries = 0; tries < 150 && !ok; tries++) {
+        const x = 20 + r() * (w - 40 - bw), y = 24 + r() * (h - 48 - bh);
+        const box = [x - 14, y - 10, x + bw + 14, y + bh + 10];
+        const nearMotif = placed.some(p => {
+          const nx = Math.max(box[0], Math.min(p.x, box[2])), ny = Math.max(box[1], Math.min(p.y, box[3]));
+          return Math.hypot(nx - p.x, ny - p.y) < p.e * .95;
+        });
+        if (hits(box, boxes) || hits(box, avoid) || nearMotif) continue;
+        boxes.push(box);
+        el.style.left = f(x) + "px"; el.style.top = f(y) + "px"; el.style.visibility = "visible";
+        ok = true;
+      }
+      if (!ok) el.remove();
+    }
+  });
 }
 
 let SEED = (Math.random() * 2 ** 31) | 0;
 window.RHBackground = {
-  svg: compose,
-  url(opts = {}) {
-    if (opts.reseed) SEED = (Math.random() * 2 ** 31) | 0;
-    return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(compose({...opts, seed: SEED}));
+  /* Draw the poster: motifs into `layer` (background image), equations into `math`. */
+  render({layer, math, theme = "dark", w = 1600, h = 900, weight = () => 50, avoid = [], reseed = false} = {}) {
+    if (reseed) SEED = (Math.random() * 2 ** 31) | 0;
+    const out = compose({theme, w, h, weight, avoid, seed: SEED});
+    if (layer) layer.style.backgroundImage = `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(out.svg)}")`;
+    if (math) placeMath(math, {theme, w: out.w, h: out.h, weight, avoid, placed: out.placed, seed: SEED});
+    return out;
   },
+  clear(math) { mathJob++; if (math) math.innerHTML = ""; },
+  svg: opts => compose(opts).svg,
   EQUATIONS, MOTIFS, PATTERNS,
 };
 })();
