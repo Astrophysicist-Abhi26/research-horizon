@@ -1,0 +1,49 @@
+name: Suggest a source
+description: A calendar, seminar page, Indico server or aggregator that Research Horizon should read.
+title: "[Source] "
+labels: ["source"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Calendars (Google Calendar / .ics), Indico servers and RSS feeds work best: they don't break when a web page is redesigned. A plain web page that lists upcoming events also works.
+  - type: input
+    id: name
+    attributes:
+      label: Institute, department or series
+      placeholder: TIFR Department of Theoretical Physics — seminars
+    validations:
+      required: true
+  - type: input
+    id: link
+    attributes:
+      label: Link
+      description: The page, calendar or feed that lists upcoming events.
+      placeholder: https://…
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of link is it?
+      options:
+        - Google Calendar or .ics feed
+        - Indico server
+        - RSS / Atom feed
+        - Web page listing events
+        - Not sure
+  - type: input
+    id: fields
+    attributes:
+      label: Research areas it covers
+      placeholder: condensed matter, quantum information
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      placeholder: Bengaluru / Mumbai / online / Trieste …
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Roughly how many events it lists, anything unusual about the page, etc.
