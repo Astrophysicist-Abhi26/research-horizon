@@ -1,0 +1,114 @@
+name: Update events
+
+# Scans every source and deploys the site straight to GitHub Pages.
+# It NEVER commits to the repository: the code on `main` changes only when
+# you push. The event database lives only in the deployed site.
+#
+# One-time setting required: Settings -> Pages -> Build and deployment ->
+# Source: "GitHub Actions".
+
+on:
+  schedule:
+    - cron: "30 2 * * *"            # daily 08:00 IST
+  workflow_dispatch:                 # run manually from the Actions tab
+  push:                              # your own code changes go live immediately
+    branches: [main]
+    paths: ["scraper/**", "docs/**", "tests/**", "requirements.txt", ".github/workflows/update.yml"]
+  issues:                            # "Add event" issues appear within minutes
+    types: [opened, edited, closed, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read                     # read-only: this workflow cannot push code
+  issues: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: update-events
+  cancel-in-progress: false
+
+jobs:
+  update:
+    # issue events: only react to "Add event" issues, not to the health-alert issues
+    if: github.event_name != 'issues' || contains(github.event.issue.labels.*.name, 'add-event') || github.event.label.name == 'add-event'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Cache embedding model (Option B)
+        uses: actions/cache@v4
+        with:
+          path: .cache/fastembed
+          key: fastembed-bge-small-en-v1.5
+
+      - name: Cache Claude labels (Option C, if enabled)
+        uses: actions/cache@v4
+        with:
+          path: scraper/cache
+          key: llm-labels-${{ github.run_id }}
+          restore-keys: llm-labels-
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Yesterday's state (first-seen dates, "new" badges, which events were
+      # already notified) is read back from the LIVE site instead of from a
+      # committed file. If the site is unreachable the run still works; events
+      # are simply all treated as new once.
+      - name: Restore previous state from the live site
+        run: |
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          repo="${GITHUB_REPOSITORY#*/}"
+          url="https://${owner}.github.io/${repo}/events.json?t=$(date +%s)"
+          if curl -fsSL --retry 3 "$url" -o /tmp/prev.json && python -c "import json;json.load(open('/tmp/prev.json'))"; then
+            cp /tmp/prev.json docs/events.json && echo "state restored from $url"
+          else
+            echo "::warning::could not read previous state from $url (first run?)"
+          fi
+
+      # Offline unit tests. If they fail the job stops and the live site keeps
+      # its current (good) data.
+      - name: Run tests
+        run: python -m pytest -q tests
+
+      - name: Scrape, classify and score
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}   # optional (Option C)
+          GH_TOKEN: ${{ github.token }}                         # reads "Add event" issues
+        run: python scraper/scrape.py
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
+
+      # Maintainer alert -> GitHub Issue -> e-mail, only when a source newly
+      # breaks. (Personal "events you should see" notices are not sent: this
+      # site serves many research profiles.) Each new alert closes the previous one.
+      - name: Notify
+        if: github.event_name != 'issues'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for l in health add-event; do gh label create "$l" --color 0E8A16 --force >/dev/null 2>&1 || true; done
+          d=$(date -u +%F)
+          post () {   # $1 label, $2 title, $3 body file
+            [ -f "$3" ] || return 0
+            for n in $(gh issue list --label "$1" --state open --json number -q '.[].number'); do
+              gh issue close "$n" --comment "Superseded by the notice of $d." >/dev/null || true
+            done
+            gh issue create --label "$1" --title "$2 — $d" --body-file "$3"
+          }
+          post health "Source health alert" notify/health.md

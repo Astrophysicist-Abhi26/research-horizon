@@ -1,0 +1,21 @@
+__pycache__/
+*.pyc
+.cache/
+notify/
+node_modules/
+*.zip
+.pytest_cache/
+
+.venv/
+
+# Local macOS / Python / model-cache files
+.DS_Store
+.venv/
+.pytest_cache/
+.cache/
+__pycache__/
+*.pyc
+
+# Produced by the Action and deployed straight to Pages; never committed
+docs/events.json
+scraper/cache/
