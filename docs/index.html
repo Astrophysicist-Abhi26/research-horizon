@@ -10,6 +10,8 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<script defer src="vendor/katex/katex.min.js"></script>
 <style>
 :root{
   --bg:#0C0A16; --panel:#15122388; --panel-solid:#151223; --line:#2A2440;
@@ -29,6 +31,9 @@ html[data-theme="light"]{color-scheme:light;--field:#FFFFFF}
 body{background:var(--bg);color:var(--text);
   font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.55}
 #bgLayer{position:fixed;inset:0;z-index:-2;background-size:cover;background-position:center;background-repeat:no-repeat}
+#bgMath{position:fixed;inset:0;z-index:-2;pointer-events:none;overflow:hidden;user-select:none}
+#bgMath .eq{position:absolute;white-space:nowrap;line-height:1.25}
+#bgMath .eq .cap{font-family:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;font-size:.52em;margin-top:.3em;letter-spacing:.02em}
 #bgLayer.custom::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,#0C0A16AA,#0C0A16E6)}
 html[data-theme="light"] #bgLayer.custom::after{background:linear-gradient(180deg,#F7F5FBB8,#F7F5FBEE)}
 canvas#sky{position:fixed;inset:0;z-index:-1;opacity:.6}
@@ -147,6 +152,7 @@ footer{border-top:1px solid var(--line);padding:22px 0 40px;color:var(--muted);f
 </head>
 <body>
 <div id="bgLayer" aria-hidden="true"></div>
+<div id="bgMath" aria-hidden="true"></div>
 <canvas id="sky" aria-hidden="true"></canvas>
 
 <header><div class="wrap">
@@ -223,6 +229,10 @@ footer{border-top:1px solid var(--line);padding:22px 0 40px;color:var(--muted);f
     </select>
     <input type="file" id="bgFile" accept="image/*" hidden>
     <button class="reset" id="bgPick" style="margin-top:8px" hidden>Choose image from this device</button>
+    <div id="bgStrengthBox" style="margin-top:12px">
+      <div class="minrel"><span>background strength</span><b id="bgStrengthV"></b></div>
+      <input type="range" id="bgStrength" min="0" max="100" step="5" aria-label="Background strength">
+    </div>
     <button class="reset" id="bgShuffle" style="margin-top:8px" title="Draw a new poster; your research profile's fields are more likely">Shuffle background</button>
 
     <button class="reset" id="reset">Reset all filters</button>
@@ -506,36 +516,50 @@ applyTheme();
 
 /* ---------- background manager (choice persists on this device) ---------- */
 (()=>{
+/* How strongly the science poster shows (0-100). Visitors can change it with the
+   "Background strength" slider under Appearance; this is the default. */
+const DEFAULT_BG_STRENGTH=85;
 const layer=document.getElementById("bgLayer"),
+      math=document.getElementById("bgMath"),
+      strength=document.getElementById("bgStrength"),
       modeSel=document.getElementById("bgMode"),
       pick=document.getElementById("bgPick"),
       shuffle=document.getElementById("bgShuffle"),
       file=document.getElementById("bgFile");
 let size=[0,0];
-function poster(reseed){   // generated science poster, sized to the window (docs/bg.js)
-  if(!window.RHBackground)return "none";
+function drawPoster(reseed){   // generated science poster, sized to the window (docs/bg.js)
+  if(!window.RHBackground)return;
   size=[innerWidth,innerHeight];
   const theme=document.documentElement.dataset.theme==="light"?"light":"dark";
-  const avoid=[...document.querySelectorAll("header .wrap > *")].map(el=>{   // keep the header text clear:
+  const avoid=[...document.querySelectorAll("header .wrap > *, .toolbar > *")].map(el=>{   // keep header + toolbar text clear:
     const rg=document.createRange();rg.selectNodeContents(el);                // the text itself, not the full-width block
     const b=rg.getBoundingClientRect(),y=scrollY;return [b.left-10,b.top+y-8,b.right+10,b.bottom+y+8]}).filter(b=>b[2]>b[0]);
-  return `url("${RHBackground.url({theme,w:innerWidth,h:innerHeight,reseed,avoid,
-    weight:t=>(typeof PROF!=="undefined"&&PROF&&PROF.weights)?W(t):50})}")`;
+  RHBackground.render({layer,math,theme,w:innerWidth,h:innerHeight,reseed,avoid,
+    weight:t=>(typeof PROF!=="undefined"&&PROF&&PROF.weights)?W(t):50});
 }
+function getStrength(){const v=parseInt(lsGet("rh-bg-strength"),10);return isNaN(v)?DEFAULT_BG_STRENGTH:Math.max(0,Math.min(100,v))}
 function apply(reseed){
   const mode=lsGet("rh-bg-mode")||"poster";
   modeSel.value=mode; pick.hidden=mode!=="custom";
-  const img=mode==="custom"&&lsGet("rh-bg-img");
-  shuffle.hidden=!(mode==="poster"||(mode==="custom"&&!img));
+  const img=mode==="custom"&&lsGet("rh-bg-img"),isPoster=mode==="poster"||(mode==="custom"&&!img);
+  shuffle.hidden=!isPoster;$("bgStrengthBox").hidden=!isPoster;
+  const s=getStrength();strength.value=s;$("bgStrengthV").textContent=s;
+  layer.style.opacity=math.style.opacity=isPoster?(s/100).toFixed(2):"";
   layer.classList.toggle("custom",mode==="custom");
   const sky=document.getElementById("sky");
   if(sky)sky.style.display=(mode==="plain")?"none":"";
-  if(mode==="poster"||(mode==="custom"&&!img)){
-    if(window.__bgReady)layer.style.backgroundImage=poster(reseed);   // drawn once the profile is known
+  if(isPoster){
+    if(window.__bgReady)drawPoster(reseed);   // drawn once the profile is known
+    return;
   }
-  else if(img)layer.style.backgroundImage=`url(${img})`;
-  else layer.style.backgroundImage="none";
+  RHBackground.clear(math);
+  layer.style.backgroundImage=img?`url(${img})`:"none";
 }
+strength.addEventListener("input",()=>{   // only the strength changes: no redraw
+  try{localStorage.setItem("rh-bg-strength",strength.value)}catch(e){}
+  $("bgStrengthV").textContent=strength.value;
+  layer.style.opacity=math.style.opacity=(strength.value/100).toFixed(2);
+});
 shuffle.addEventListener("click",()=>apply(true));
 let rt=0;
 addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(()=>{   // redraw for a new shape, same poster
