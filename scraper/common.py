@@ -1,5 +1,5 @@
 """
-Shared helpers for every Research Horizon source.
+Shared helpers for every Event Horizon 2.0 source.
 
 One HTTP session with retries, one date parser that understands the date
 formats academic sites actually use, and a tolerant iCal reader.
@@ -7,6 +7,7 @@ formats academic sites actually use, and a tolerant iCal reader.
 
 import datetime as dt
 import html as _html
+import os
 import re
 import time
 
@@ -15,8 +16,8 @@ from dateutil import parser as dateparser
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-UA = ("ResearchHorizon/1.0 (academic event aggregator; "
-      "+https://github.com/Astrophysicist-Abhi26/research-horizon)")
+REPO = os.environ.get("GITHUB_REPOSITORY", "Astrophysicist-Abhi26/research-horizon")
+UA = f"EventHorizon2/1.0 (academic event aggregator; +https://github.com/{REPO})"
 TIMEOUT = 30
 CONNECT_TIMEOUT = 10     # a host that does not answer at all fails in seconds, not minutes
 
@@ -67,6 +68,11 @@ def get(url, insecure_ok=False, **kw):
     if r.status_code in (403, 406):
         r = HTTP.get(url, headers={**headers, **_BROWSER_HEADERS}, verify=verify, **kw)
     r.raise_for_status()
+    # A server that names no charset gets ISO-8859-1 from requests, which turns
+    # UTF-8 "It's" into "Itâs" (IIT Madras). Let the bytes decide instead.
+    ctype = (getattr(r, "headers", None) or {}).get("content-type", "")
+    if "charset" not in ctype.lower() and ("text" in ctype or "html" in ctype or "xml" in ctype):
+        r.encoding = r.apparent_encoding or "utf-8"
     return r
 
 
@@ -192,6 +198,9 @@ def parse_date_range(text):
     if not text:
         return None, None
     t = clean(text).replace("\u2009", " ")
+    # "8th - 10th December 2026" -> "8 - 10 December 2026", so day ranges written
+    # with ordinals are read as ranges, not just their last day
+    t = re.sub(r"\b(\d{1,2})(?:st|nd|rd|th)\b", r"\1", t)
     for i, pat in enumerate(_RANGE_PATTERNS):
         m = pat.search(t)
         if not m:

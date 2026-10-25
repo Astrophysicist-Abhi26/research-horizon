@@ -1,5 +1,5 @@
 """
-Research Horizon — daily pipeline.
+Event Horizon 2.0 — daily pipeline.
 
   sources -> health check -> normalise -> drop past/undated -> de-duplicate
   -> classify (declared codes + keywords + embeddings [+ Claude])

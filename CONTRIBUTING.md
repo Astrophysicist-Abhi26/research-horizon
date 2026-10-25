@@ -57,6 +57,12 @@ Each entry picks an adapter with `kind`:
 | `indico` | an Indico server (JSON export, falling back to the public iCal feed) |
 | `wp_events` | WordPress sites using "The Events Calendar" |
 | `labelled_list` | pages listing each talk as a list item with `Date:` / `Time:` / `Venue:` lines |
+| `table` | an HTML table with a header row (Title, Speaker, Date, Venue …); columns are found by their header words |
+| `rss` | an RSS feed whose item titles start with the date (Joomla JEvents) |
+
+Optional keys for any entry: `include` / `exclude` (a regex on the title: keep only, or
+drop, matching items, e.g. a notice board's tenders) and `title_in_description` (for
+calendars that name an entry after its speaker and put the real title in a "Title:" line).
 | `listing` | an HTML page that lists upcoming events (last resort) |
 
 Check a new entry against the live site before opening a pull request:

@@ -1,5 +1,5 @@
 name: Suggest a source
-description: A calendar, seminar page, Indico server or aggregator that Research Horizon should read.
+description: A calendar, seminar page, Indico server or aggregator that Event Horizon 2.0 should read.
 title: "[Source] "
 labels: ["source"]
 body:

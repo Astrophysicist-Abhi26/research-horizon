@@ -1,4 +1,4 @@
-# Research Horizon — institute registry
+# Event Horizon 2.0 — institute registry
 #
 # One entry = one source = one line in the site's "Source health" panel.
 # Bengaluru first, then the rest of India. Global aggregators (INSPIRE, CADC,
@@ -11,13 +11,22 @@
 #   google_calendar  public Google Calendar(s), by calendar id  — most robust
 #   ical             any public .ics feed                          — most robust
 #   wp_events        WordPress "The Events Calendar" site (REST API, falls back to iCal)
-#   indico           Indico server (JSON export)
+#   indico           Indico server (JSON export, falls back to iCal)
+#   rss              RSS feed whose item titles start with the date (Joomla JEvents)
+#   table            an HTML table with a header row (Title / Speaker / Date / Venue ...);
+#                    columns are recognised by their header words
+#   labelled_list    <li> items with "Date:", "Time:", "Venue:" lines (CMI)
+#   iiser_pune       IISER Pune's events search (its page is a JavaScript app)
 #
 # Other keys:
 #   name, location (default location for the events), type (default event type),
 #   url / urls (may contain {year}), href_filter (regex; only matching links are
 #   candidates), insecure_ok (server ships a broken TLS chain: fetch anyway —
 #   read-only public data), min_expected (health turns amber below this),
+#   include / exclude (regex on the title: keep only / drop matching items, e.g.
+#   a notice board's tenders, or thesis defences), title_in_description (the
+#   calendar names an entry after its speaker; the real title is the "Title:"
+#   line of its description),
 #   enabled: false (parked; `python scraper/doctor.py --all` still tests it),
 #   checked: when a human last confirmed the page layout.
 #
@@ -236,9 +245,146 @@ sources:
     location: NCRA-TIFR, Pune, India
     insecure_ok: true
 
+  # ── Institutes added from INSTITUTES.md (pure sciences first) ─────────
+  # All checked from GitHub's network on 2026-10-25. Pages that list nothing
+  # upcoming today were checked against their past items instead.
+
+  - name: TIFR SciTalks (Indico)
+    kind: indico
+    base: https://scitalks.tifr.res.in
+    category: 0
+    location: TIFR, Mumbai, India
+    exclude: "thesis defen[cs]e|synopsis|\\bviva\\b"
+    checked: 2026-10-25       # all TIFR talks, conferences and workshops
+
+  - name: TIFR (all-campus events)
+    kind: listing
+    url: https://secure.hbcse.tifr.res.in/events/tifr.php
+    location: TIFR, Mumbai, India
+    exclude: "^all events$"
+    checked: 2026-10-25
+
+  - name: NISER (Indico)
+    kind: indico
+    base: https://indico.niser.ac.in
+    category: 0
+    location: NISER, Bhubaneswar, India
+    checked: 2026-10-25
+
+  - name: SINP (Indico)
+    kind: indico
+    base: https://indico.saha.ac.in
+    category: 0
+    location: SINP, Kolkata, India
+    checked: 2026-10-25       # server works; nothing upcoming yet. www.saha.ac.in answers 500
+
+  - name: IIT Bombay Mathematics seminars
+    kind: ical                # the department's WebCalendar, published as iCal
+    url: https://www.math.iitb.ac.in/webcal/publish.php?user=__public__
+    page: https://www.math.iitb.ac.in/NewsEvents/seminars.php
+    location: Department of Mathematics, IIT Bombay, Mumbai, India
+    type: seminar
+    title_in_description: true
+    checked: 2026-10-25
+
+  - name: IIT Bombay Mathematics events
+    kind: listing
+    url: https://www.math.iitb.ac.in/NewsEvents/events.php
+    location: IIT Bombay, Mumbai, India
+    checked: 2026-10-25       # workshops and conferences
+
+  - name: IIT Madras Physics colloquium
+    kind: table
+    url: https://physics.iitm.ac.in/events/bramhaguptacolloquium.html
+    location: Department of Physics, IIT Madras, Chennai, India
+    type: colloquium
+    checked: 2026-10-25       # Brahmagupta Colloquium
+
+  - name: IIT Delhi Physics talks
+    kind: table
+    url: https://physics.iitd.ac.in/talks_seminars
+    location: Department of Physics, IIT Delhi, New Delhi, India
+    type: seminar
+    checked: 2026-10-25
+
+  - name: IIT Delhi Physics events
+    kind: listing
+    url: https://physics.iitd.ac.in/newsevents
+    location: IIT Delhi, New Delhi, India
+    include: "symposi|conference|workshop|school|meeting|lecture"
+    checked: 2026-10-25       # news board: only its meetings are kept
+
+  - name: IIT Kanpur Physics colloquium
+    kind: listing
+    url: https://www.iitk.ac.in/phy/index.php/activities/colloquium?showall=1
+    location: Department of Physics, IIT Kanpur, Kanpur, India
+    type: colloquium
+    checked: 2026-10-25
+
+  - name: IIT Guwahati Physics seminars
+    kind: listing
+    url: https://www.iitg.ac.in/phy/seminar&colloquium.php
+    location: Department of Physics, IIT Guwahati, Guwahati, India
+    type: seminar
+    checked: 2026-10-25
+
+  - name: IIT Mandi Physical Sciences seminars
+    kind: table
+    url: https://sps.iitmandi.ac.in/events.php
+    location: School of Physical Sciences, IIT Mandi, Mandi, India
+    type: seminar
+    checked: 2026-10-25
+
+  - name: IISER Pune events
+    kind: iiser_pune
+    base: https://www.iiserpune.ac.in
+    location: IISER Pune, Pune, India
+    checked: 2026-10-25       # search works; nothing upcoming posted since July
+
+  - name: IISER Kolkata Physical Sciences seminars
+    kind: listing
+    url: https://physics.iiserkol.ac.in/seminar.php
+    location: Department of Physical Sciences, IISER Kolkata, Kolkata, India
+    type: seminar
+    checked: 2026-10-25
+
+  - name: IISER Mohali events
+    kind: rss                 # JEvents "latest events" feed
+    url: https://www.iisermohali.ac.in/index.php?option=com_jevents&task=modlatest.rss&format=feed&type=rss&Itemid=1053&modid=0
+    page: https://www.iisermohali.ac.in/event-details
+    location: IISER Mohali, Mohali, India
+    checked: 2026-10-25
+
+  - name: S. N. Bose Centre (conferences)
+    kind: listing
+    url: https://newweb.bose.res.in/
+    location: S. N. Bose National Centre for Basic Sciences, Kolkata, India
+    exclude: "^(click|more|read|all (events|talks))"
+    checked: 2026-10-25       # its own talk and conference pages are built by JavaScript
+
+  - name: IACS events
+    kind: table
+    url: https://iacs.res.in/splevent.php
+    location: IACS, Kolkata, India
+    checked: 2026-10-25       # conferences and symposia ("Event date" column)
+
+  - name: ARIES seminars
+    kind: listing
+    url: https://aries.res.in/seminar-colloquium-upcoming
+    location: ARIES, Nainital, India
+    type: seminar
+    checked: 2026-10-25
+
+  - name: ARIES meetings
+    kind: listing
+    url: https://aries.res.in/announcement
+    location: ARIES, Nainital, India
+    include: "symposi|conference|workshop|school|meeting|IAUS|training"
+    checked: 2026-10-25       # announcements board: only its meetings are kept
+
   # ── Add more here ────────────────────────────────────────────────────
-  # IISER Pune, other IISERs, IITs, ARIES Nainital, PRL, HRI, IIST, S N Bose,
-  # IoP Bhubaneswar ... For each: open the institute's "upcoming events /
+  # Candidates and their status are in INSTITUTES.md. For each: open the
+  # institute's "upcoming events /
   # seminars" page in a browser, then add a block like the ones above.
   # Prefer, in this order: a Google Calendar / .ics link, an Indico server,
   # "Subscribe to calendar" on a WordPress events page (kind: wp_events),

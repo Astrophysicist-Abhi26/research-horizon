@@ -1,4 +1,4 @@
-# Research Horizon 🔭
+# Event Horizon 2.0 🔭
 
 **A research-event radar for every field.** Conferences, schools, workshops, seminars and
 webinars are collected every day into one shared database, tagged by subject, and ranked
@@ -72,7 +72,7 @@ GitHub Actions (daily 08:00 IST, on every push to main, and on "Add event" issue
  ├─ tests                      offline tests; a failure stops the run, so the site
  │                             keeps its last good data
  ├─ scraper/scrape.py
- │   ├─ ~35 sources            each isolated: one broken site never stops the run;
+ │   ├─ ~50 sources            each isolated: one broken site never stops the run;
  │   │                         a source that is down keeps its last good events ("stale")
  │   ├─ normalise              drop past and undated events; detect Bengaluru / India /
  │   │                         online / abroad
@@ -106,8 +106,13 @@ The Indian institutes covered today:
 
 - **Bengaluru:** ICTS, IISc (Physics calendars, conferences and schools; Mathematics; CDS;
   institute events), RRI, IIA and JNCASR.
-- **Elsewhere in India:** IUCAA, ASI, TIFR DAA, NCRA and CMI (mathematics, physics and
-  computer-science seminars).
+- **IITs:** Bombay (Mathematics), Madras, Delhi, Kanpur, Guwahati and Mandi (Physics).
+- **IISERs and NISER:** IISER Pune, Kolkata (Physical Sciences) and Mohali; NISER.
+- **National institutes:** TIFR (all departments), NCRA, IUCAA, SINP, S. N. Bose Centre,
+  IACS, ARIES, CMI, and the ASI announcements.
+
+[INSTITUTES.md](INSTITUTES.md) lists the leading Indian institutes (IITs, IISERs, NISER, DAE,
+DST and space institutes, ISI, IIITs) with which ones are covered and which come next.
 
 The **Source health** panel at the bottom of the site shows which sources worked on the
 last run. You can test any institute source from your own network with
@@ -153,11 +158,11 @@ cd docs && python3 -m http.server           # open http://localhost:8000
 
 ## Origin
 
-Research Horizon grew out of
+Event Horizon 2.0 is the successor of the original
 [Event Horizon](https://github.com/Astrophysicist-Abhi26/event-horizon), a radar built for
-cosmology and astrophysics at IISc Bengaluru. Its ranking lives on unchanged as the
-**Cosmology & ML for science** profile; a test checks that it reproduces Event Horizon's
-scores exactly.
+cosmology and astrophysics at IISc Bengaluru. (It was called Research Horizon while it was
+being built.) The original ranking lives on unchanged as the **Cosmology & ML for science**
+profile; a test checks that it reproduces the original's scores exactly.
 
 ## License
 

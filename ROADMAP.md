@@ -1,6 +1,6 @@
 # Roadmap
 
-Research Horizon grows in small steps. Each step is one pull request that keeps the site
+Event Horizon 2.0 grows in small steps. Each step is one pull request that keeps the site
 working and keeps every existing test green.
 
 **Principles**
@@ -73,8 +73,9 @@ Candidates (each checked against the live site before it is added):
 - **IISc:** CHEP, CeNSE, and the Physics department's condensed-matter and quantum seminars.
 - **Bengaluru:** RRI (soft condensed matter, light & matter physics), JNCASR (Theoretical
   Sciences Unit), ICTS programmes (already covered).
-- **Rest of India:** TIFR (theoretical physics, condensed matter), HRI, IISERs, IIT physics
-  departments. IMSc is on hold: its site blocks automated visitors.
+- **Rest of India:** the IITs, IISERs, NISER and the DAE, DST and space research institutes
+  in [INSTITUTES.md](INSTITUTES.md), priority A first. IMSc is on hold: its site blocks
+  automated visitors.
 - **International:** ICTP Trieste (Indico), and wider researchseminars.org topic filters.
 
 ## Step 4: more physics profiles
