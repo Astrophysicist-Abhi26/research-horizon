@@ -37,7 +37,7 @@ _POSTED_CLASS = re.compile(r"(?:^|[-_])(?:created|posted|submitted|post-date|ent
 # block's heading (IISc Physics: <h2>ICMS 2026</h2> ... <a>Website</a>).
 GENERIC_LINK = re.compile(r"^(?:website|web ?page|more info(?:rmation)?|read more|details|"
                           r"know more|click here|here|link|visit|view|more|"
-                          r"click (?:here )?for (?:more )?details)\W*$", re.I)
+                          r"click (?:here )?for (?:more )?details|more details|view details)\W*$", re.I)
 # "Department Seminar : Speaker : Dr. X, Lisbon Title : Two faces of ..., Venue : ..."
 # (IIT Guwahati): the real title and speaker are labelled inside the item.
 _LABELLED = re.compile(r"\bTitle\s*:\s*(?P<title>.+?)\s*(?:,?\s*\bVenue\s*:.*)?$", re.I)
@@ -59,7 +59,10 @@ _CHROME_MAX_SHARE = 0.4      # never strip a wrapper holding this much of the pa
 
 def _strip_chrome(soup):
     for tag in soup.find_all(["script", "style", "noscript", "form"]):
-        tag.decompose()
+        if tag.name == "noscript" and tag.find("a", href=True):
+            tag.unwrap()                     # a no-JavaScript agenda (IIT Gandhinagar)
+        else:
+            tag.decompose()
     root = soup.body or soup
     total = max(1, len(root.get_text(" ", strip=True)))
 
@@ -95,7 +98,10 @@ def _heading(node, min_title):
     min_title = min(min_title, 6)            # "ICMS 2026" is a fine heading
     for h in node.find_all(["h1", "h2", "h3", "h4", "h5", "h6", "strong", "b"]):
         t = clean(h.get_text(" "))
-        if len(t) >= min_title and not NAV_WORDS.match(t) and not parse_date_range(t)[0] \
+        # a heading that is mostly a date is not a title; a long title may contain one
+        # ("C4SOS-26 to be held during 21-23 Dec 2026", IIT Bhubaneswar)
+        if len(t) >= min_title and not NAV_WORDS.match(t) \
+                and not (parse_date_range(t)[0] and len(t) < 40) \
                 and not t.rstrip(":").lower() in ("date", "venue", "time", "speaker"):
             return t
     return None
@@ -149,7 +155,7 @@ def extract_listing(url, source, default_location, href_filter=None,
                 title = h
             start, end = parse_date_range(text)
             if start:
-                desc = text.replace(title, " ").strip()[:500]
+                desc = text.replace(title, " ", 1).strip()[:500]
                 break
         if not start or (generic and GENERIC_LINK.match(title)) or _NOT_EVENT.search(title):
             continue  # undated (or untitled) -> not an event we can place in time

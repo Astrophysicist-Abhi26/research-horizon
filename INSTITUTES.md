@@ -54,16 +54,16 @@ each usually with its own seminar page.
 | IIT Kharagpur | Kharagpur | A | ⏸ no departmental events page found |
 | IIT Guwahati | Guwahati | A | ✅ Physics seminars and colloquia |
 | IIT Hyderabad | Hyderabad | A | ⏸ no events page with dates (home page links only) |
-| IIT Roorkee | Roorkee | B | ⬜ |
-| IIT (BHU) Varanasi | Varanasi | B | ⬜ |
-| IIT Gandhinagar | Gandhinagar | B | ⬜ |
-| IIT Indore | Indore | B | ⬜ |
-| IIT Bhubaneswar | Bhubaneswar | B | ⬜ |
+| IIT Roorkee | Roorkee | B | ⏸ no events or seminar page found (institute or Physics/Maths departments) |
+| IIT (BHU) Varanasi | Varanasi | B | ✅ Physics and Mathematical Sciences events |
+| IIT Gandhinagar | Gandhinagar | B | ✅ institute events calendar (its no-JavaScript agenda) |
+| IIT Indore | Indore | B | ✅ institute academic events (conferences) |
+| IIT Bhubaneswar | Bhubaneswar | B | ✅ School of Basic Sciences events |
 | IIT Mandi | Mandi | B | ✅ Physical Sciences seminars |
-| IIT Ropar | Rupnagar | B | ⬜ |
-| IIT Jodhpur | Jodhpur | B | ⬜ |
-| IIT Patna | Patna | B | ⬜ |
-| IIT (ISM) Dhanbad | Dhanbad | B | ⬜ |
+| IIT Ropar | Rupnagar | B | ⏸ no dated events list (news pages only) |
+| IIT Jodhpur | Jodhpur | B | ✅ Physics seminars and meetings; Maths seminars (site is slow, ~45 s) |
+| IIT Patna | Patna | B | ⏸ no events or seminar page found |
+| IIT (ISM) Dhanbad | Dhanbad | B | ✅ seminars and conferences |
 | IIT Palakkad | Palakkad | C | ⬜ |
 | IIT Tirupati | Tirupati | C | ⬜ |
 | IIT Dharwad | Dharwad | C | ⬜ |
@@ -78,10 +78,10 @@ each usually with its own seminar page.
 | IISER Pune | Pune | Ministry of Education | A | ✅ events search (nothing upcoming posted since July 2026) |
 | IISER Kolkata | Kolkata | Ministry of Education | A | ✅ Physical Sciences seminars. ⏸ Maths site does not resolve |
 | IISER Mohali | Mohali | Ministry of Education | A | ✅ events feed (RSS) |
-| IISER Bhopal | Bhopal | Ministry of Education | B | ⬜ |
-| IISER Thiruvananthapuram | Thiruvananthapuram | Ministry of Education | B | ⬜ |
-| IISER Tirupati | Tirupati | Ministry of Education | B | ⬜ |
-| IISER Berhampur | Berhampur | Ministry of Education | C | ⬜ |
+| IISER Bhopal | Bhopal | Ministry of Education | B | ✅ institute events. ⏸ Physics seminars: page built by JavaScript |
+| IISER Thiruvananthapuram | Thiruvananthapuram | Ministry of Education | B | ✅ institute events (nothing upcoming posted yet) |
+| IISER Tirupati | Tirupati | Ministry of Education | B | ⏸ events page built by JavaScript, no dates in the page |
+| IISER Berhampur | Berhampur | Ministry of Education | C | ✅ seminars and conferences; events |
 | National Institute of Science Education and Research (NISER) | Bhubaneswar | DAE | A | ✅ Indico |
 | UM-DAE Centre for Excellence in Basic Sciences (CEBS) | Mumbai | DAE and University of Mumbai | C | ⬜ |
 
@@ -150,8 +150,8 @@ does not tag yet. They will be added with those subjects.
 
 | Group | Listed | ✅ | ⏸ | ⬜ |
 |---|---|---|---|---|
-| IITs | 23 | 6 | 2 | 15 |
-| IISERs, NISER, CEBS | 9 | 4 | 0 | 5 |
+| IITs | 23 | 12 | 5 | 6 |
+| IISERs, NISER, CEBS | 9 | 7 | 1 | 1 |
 | DAE institutes | 10 | 2 | 2 | 6 |
 | DST institutes (in scope) | 10 | 6 | 0 | 4 |
 | Space, earth sciences, inter-university | 7 | 1 | 1 | 5 |
@@ -165,5 +165,8 @@ DAE.
 
 - **Engineering at the established IITs** (Computer Science, Electrical Engineering at Bombay,
   Madras, Delhi, Kanpur, Kharagpur), after the remaining science departments.
-- **IITs and IISERs marked ⬜**, priority B first.
+- **The remaining ⬜ IITs** (priority C: Palakkad, Tirupati, Dharwad, Bhilai, Goa, Jammu) and
+  CEBS.
+- **Priority-B national institutes marked ⬜** (TIFR-CAM, TIFR Hyderabad, IPR, Bose
+  Institute, CeNS, IIST, IUAC, ISI Delhi).
 - **⏸ entries** are re-checked now and then: a site that is redesigned often becomes readable.
