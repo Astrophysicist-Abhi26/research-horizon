@@ -72,7 +72,7 @@ GitHub Actions (daily 08:00 IST, on every push to main, and on "Add event" issue
  ├─ tests                      offline tests; a failure stops the run, so the site
  │                             keeps its last good data
  ├─ scraper/scrape.py
- │   ├─ ~50 sources            each isolated: one broken site never stops the run;
+ │   ├─ ~60 sources            each isolated: one broken site never stops the run;
  │   │                         a source that is down keeps its last good events ("stale")
  │   ├─ normalise              drop past and undated events; detect Bengaluru / India /
  │   │                         online / abroad
@@ -106,8 +106,11 @@ The Indian institutes covered today:
 
 - **Bengaluru:** ICTS, IISc (Physics calendars, conferences and schools; Mathematics; CDS;
   institute events), RRI, IIA and JNCASR.
-- **IITs:** Bombay (Mathematics), Madras, Delhi, Kanpur, Guwahati and Mandi (Physics).
-- **IISERs and NISER:** IISER Pune, Kolkata (Physical Sciences) and Mohali; NISER.
+- **IITs:** Bombay (Mathematics), Madras, Delhi, Kanpur, Guwahati and Mandi (Physics);
+  (BHU) Varanasi and Jodhpur (Physics, Mathematics); Bhubaneswar (Basic Sciences);
+  Gandhinagar, Indore and (ISM) Dhanbad (institute events and conferences).
+- **IISERs and NISER:** IISER Pune, Kolkata (Physical Sciences), Mohali, Bhopal,
+  Thiruvananthapuram and Berhampur; NISER.
 - **National institutes:** TIFR (all departments), NCRA, IUCAA, SINP, S. N. Bose Centre,
   IACS, ARIES, CMI, and the ASI announcements.
 

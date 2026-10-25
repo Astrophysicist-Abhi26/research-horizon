@@ -458,7 +458,24 @@ _DESC_TITLE = re.compile(r"\bTitle\s*:\s*(.+?)\s*(?=\b(?:Time|Venue|Abstract|Spe
                          r"Date|Location)\b[^:]{0,20}:|$)", re.I | re.S)
 
 
+_LEADING_DATES = re.compile(r"^\s*(?:\d{1,2}(?:st|nd|rd|th)?\s+\w+,?\s+\d{4}"
+                            r"(?:\s*(?:to|-|–)\s*\d{1,2}(?:st|nd|rd|th)?\s+\w+,?\s+\d{4})?\s*)+", re.I)
 _BADGE = re.compile(r"\s*\(\s*new\s*\)\s*$|^\s*new\s*[:!\-–]\s*", re.I)
+# "... (ICEMD 2026) : 21st - 23rd December 2026", "... C4SOS-26 to be held during 21–23 Dec 2026"
+_TRAILING_DATE = re.compile(r"(?:\s+[:|]\s*|\s+(?:to be )?(?:held|scheduled)\s+(?:during|on|from|between)\s+)"
+                            r"([^:|]{4,45})$", re.I)
+_DATE_WORDS = re.compile(r"\b(?:\d{1,4}(?:st|nd|rd|th)?|jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|"
+                         r"january|february|march|april|june|july|august|september|october|november|"
+                         r"december|\w+day|to|and|from|till|until)\b", re.I)
+
+
+def _drop_trailing_date(title):
+    """Cut a date the site appended to the title; the card shows the dates anyway."""
+    m = _TRAILING_DATE.search(title)
+    if m and m.start() >= 12 and parse_date_range(m.group(1))[0] \
+            and not re.sub(r"[\W_]+", "", _DATE_WORDS.sub("", m.group(1))):
+        return title[:m.start()].rstrip(" ,;–-")
+    return title
 
 
 def run_source(cfg):
@@ -466,7 +483,7 @@ def run_source(cfg):
     matches it; `exclude` drops matching ones (thesis defences, tenders, ...)."""
     evs = ADAPTERS[cfg.get("kind", "listing")](cfg) or []
     for e in evs:                            # "(NEW)" badges are not part of a title (IACS)
-        e["title"] = _BADGE.sub("", e.get("title") or "").strip()
+        e["title"] = _drop_trailing_date(_BADGE.sub("", e.get("title") or "").strip())
     if cfg.get("title_in_description"):     # calendar entry named after the speaker,
         for e in evs:                        # "Title: ..." in its description (IIT Bombay)
             m = _DESC_TITLE.search(e.get("description") or "")
@@ -474,6 +491,16 @@ def run_source(cfg):
                 who = e["title"]
                 e["title"] = f"{m.group(1).strip(' .,;')} — {who}"
                 e["speaker"] = e.get("speaker") or who
+    if cfg.get("title_label"):               # "Details: <full name>" beside a generic
+        pat = re.compile(rf"\b{re.escape(cfg['title_label'])}\s*:\s*(.+)", re.I | re.S)
+        for e in evs:                        # heading such as "International Conference"
+            m = pat.search(e.get("description") or "")
+            if not m:
+                continue
+            full = _LEADING_DATES.sub("", m.group(1))
+            full = re.split(r"\s+(?:read more|know more|view details)\b", full, flags=re.I)[0].strip(" .,;")
+            if len(full) >= 12:
+                e["title"] = full
     if cfg.get("include"):              # notice boards: keep only real events
         pat = re.compile(cfg["include"], re.I)
         evs = [e for e in evs if pat.search(e.get("title") or "")]

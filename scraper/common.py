@@ -135,6 +135,8 @@ _RANGE_PATTERNS = [
     # when a table puts start and end in adjacent cells)
     re.compile(r"\b(\d{1,2}[/.]\d{1,2}[/.]\d{4})(?:\s*(?:-|–|—|to|until|till)\s*|\s+)"
                r"(\d{1,2}[/.]\d{1,2}[/.]\d{4})\b"),
+    # 12 Feb - Feb 16 2027 (IIT BHU: day-month, then month-day)
+    re.compile(rf"(\d{{1,2}}\s+{_M}){_SEP}({_M}\s+\d{{1,2}},?\s+(\d{{4}}))", re.I),
 ]
 _SINGLE_PATTERNS = [
     re.compile(r"(\d{4}-\d{2}-\d{2})"),
@@ -201,6 +203,7 @@ def parse_date_range(text):
     # "8th - 10th December 2026" -> "8 - 10 December 2026", so day ranges written
     # with ordinals are read as ranges, not just their last day
     t = re.sub(r"\b(\d{1,2})(?:st|nd|rd|th)\b", r"\1", t)
+    t = t.replace("|", " ")                     # "12 Feb - Feb 16 | 2027"
     for i, pat in enumerate(_RANGE_PATTERNS):
         m = pat.search(t)
         if not m:
@@ -210,7 +213,7 @@ def parse_date_range(text):
             a, b = iso(g[0]), iso(g[1])
         elif i == 7:
             a, b = _dmy(g[0]), _dmy(g[1])
-        elif i in (2, 3):
+        elif i in (2, 3, 8):
             a, b = iso(f"{g[0]} {g[2]}"), iso(g[1])
         elif i == 4:
             a, b = iso(f"{g[0]} {g[2]} {g[3]}"), iso(f"{g[1]} {g[2]} {g[3]}")

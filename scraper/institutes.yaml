@@ -26,7 +26,8 @@
 #   include / exclude (regex on the title: keep only / drop matching items, e.g.
 #   a notice board's tenders, or thesis defences), title_in_description (the
 #   calendar names an entry after its speaker; the real title is the "Title:"
-#   line of its description),
+#   line of its description), title_label (the headings are generic, e.g.
+#   "International Conference"; the full name follows "<label>:" in the item),
 #   enabled: false (parked; `python scraper/doctor.py --all` still tests it),
 #   checked: when a human last confirmed the page layout.
 #
@@ -381,6 +382,88 @@ sources:
     location: ARIES, Nainital, India
     include: "symposi|conference|workshop|school|meeting|IAUS|training"
     checked: 2026-10-25       # announcements board: only its meetings are kept
+
+  # ── Priority-B IITs and IISERs (checked from GitHub's network, 2026-10-25) ──
+
+  - name: IIT Jodhpur Physics seminars & meetings
+    kind: listing
+    url: https://iitj.ac.in/physics/en/Seminars-and-Meetings
+    location: Department of Physics, IIT Jodhpur, Jodhpur, India
+    insecure_ok: true         # server ships an incomplete certificate chain; slow (~45 s)
+    checked: 2026-10-25
+
+  - name: IIT Jodhpur Mathematics seminars
+    kind: listing
+    url: https://iitj.ac.in/mathematics/en/Seminars-and-Meetings
+    location: Department of Mathematics, IIT Jodhpur, Jodhpur, India
+    type: seminar
+    insecure_ok: true
+    checked: 2026-10-25
+
+  - name: IIT (BHU) Physics events
+    kind: table               # Date | Title | Coordinator(s) | Type | Attachment
+    url: https://www.iitbhu.ac.in/dept/phy/events
+    location: Department of Physics, IIT (BHU), Varanasi, India
+    checked: 2026-10-25
+
+  - name: IIT (BHU) Mathematical Sciences events
+    kind: table
+    url: https://www.iitbhu.ac.in/dept/mat/events
+    location: Department of Mathematical Sciences, IIT (BHU), Varanasi, India
+    checked: 2026-10-25
+
+  - name: IIT Gandhinagar events
+    kind: listing             # the calendar's no-JavaScript agenda
+    url: https://events.iitgn.ac.in/home/
+    location: IIT Gandhinagar, Gandhinagar, India
+    exclude: "alumni|homecoming|admission|convocation|sports|cultural|placement|\\bfest\\b|cricket|\\bleague\\b|teacher|open day|contribution week|hackathon"
+    checked: 2026-10-25
+
+  - name: IIT Indore academic events
+    kind: listing
+    url: https://www.iiti.ac.in/home/more_events
+    location: IIT Indore, Indore, India
+    title_label: Details      # headings are generic ("International Conference")
+    exclude: "certificate|AICTE|\\bQIP\\b"   # certificate programmes are courses, not events
+    checked: 2026-10-25
+
+  - name: IIT Bhubaneswar School of Basic Sciences events
+    kind: listing
+    url: https://sbs.iitbbs.ac.in/index.php/events/
+    location: School of Basic Sciences, IIT Bhubaneswar, Bhubaneswar, India
+    exclude: "viva|award|admission"
+    checked: 2026-10-25
+
+  - name: IIT (ISM) Dhanbad seminars & conferences
+    kind: listing
+    url: https://www.iitism.ac.in/seminar-1
+    location: IIT (ISM) Dhanbad, Dhanbad, India
+    exclude: "faculty program|leadership|induction|orientation|teachers.? training"
+    checked: 2026-10-25
+
+  - name: IISER Bhopal events
+    kind: listing
+    url: https://www.iiserb.ac.in/EventList
+    location: IISER Bhopal, Bhopal, India
+    checked: 2026-10-25
+
+  - name: IISER Thiruvananthapuram events
+    kind: listing
+    url: https://www.iisertvm.ac.in/events/index
+    location: IISER Thiruvananthapuram, Thiruvananthapuram, India
+    checked: 2026-10-25
+
+  - name: IISER Berhampur seminars & conferences
+    kind: listing
+    url: https://www.iiserbpr.ac.in/all-seminars
+    location: IISER Berhampur, Berhampur, India
+    checked: 2026-10-25
+
+  - name: IISER Berhampur events
+    kind: listing
+    url: https://www.iiserbpr.ac.in/all-events
+    location: IISER Berhampur, Berhampur, India
+    checked: 2026-10-25       # institute colloquia and lectures
 
   # ── Add more here ────────────────────────────────────────────────────
   # Candidates and their status are in INSTITUTES.md. For each: open the

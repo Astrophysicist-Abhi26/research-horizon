@@ -46,3 +46,16 @@ events:
       Theoretical and observational cosmology; participating institutes IISc,
       IIA, RRI, ICTS and CHRIST. The link is the registration form;
       registration queries to cosmos@christuniversity.in.
+
+  - title: Testing Aspects of General Relativity – V (online workshop)
+    url: https://docs.google.com/forms/d/e/1FAIpQLSdNYMODckfyRUhdfdWzBf5U-fGXirEugyxBaqtb2ndfWGF4Ag/viewform
+    start: 2026-10-28
+    end: 2026-10-29
+    deadline: 2026-10-25          # registration window on the IITGN calendar: 9–25 Oct
+    location: Online
+    online: true
+    type: workshop
+    fields: [phys.gr, astro.he]
+    notes: >-
+      Gravitational waves and astrophysics; organised jointly by IIT Gandhinagar and the
+      University of Lethbridge, Canada. The link is the registration form.

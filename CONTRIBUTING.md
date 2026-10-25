@@ -62,7 +62,9 @@ Each entry picks an adapter with `kind`:
 
 Optional keys for any entry: `include` / `exclude` (a regex on the title: keep only, or
 drop, matching items, e.g. a notice board's tenders) and `title_in_description` (for
-calendars that name an entry after its speaker and put the real title in a "Title:" line).
+calendars that name an entry after its speaker and put the real title in a "Title:" line),
+and `title_label` (for pages whose headings are generic, such as "International Conference",
+with the full name after a label like "Details:").
 | `listing` | an HTML page that lists upcoming events (last resort) |
 
 Check a new entry against the live site before opening a pull request:
