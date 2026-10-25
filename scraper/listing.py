@@ -36,7 +36,21 @@ _POSTED_CLASS = re.compile(r"(?:^|[-_])(?:created|posted|submitted|post-date|ent
 # Link texts that say nothing about the event: the title is then taken from the
 # block's heading (IISc Physics: <h2>ICMS 2026</h2> ... <a>Website</a>).
 GENERIC_LINK = re.compile(r"^(?:website|web ?page|more info(?:rmation)?|read more|details|"
-                          r"know more|click here|here|link|visit|view|more)\W*$", re.I)
+                          r"know more|click here|here|link|visit|view|more|"
+                          r"click (?:here )?for (?:more )?details)\W*$", re.I)
+# "Department Seminar : Speaker : Dr. X, Lisbon Title : Two faces of ..., Venue : ..."
+# (IIT Guwahati): the real title and speaker are labelled inside the item.
+_LABELLED = re.compile(r"\bTitle\s*:\s*(?P<title>.+?)\s*(?:,?\s*\bVenue\s*:.*)?$", re.I)
+_SPEAKER = re.compile(r"\bSpeaker\s*:\s*(?P<who>.+?)\s*(?:\bTitle\s*:|$)", re.I)
+
+
+def labelled_title(text):
+    """-> (title, speaker) when the text labels them, else (text, None)."""
+    m = _LABELLED.search(text or "")
+    if not m or len(m.group("title")) < 8:
+        return text, None
+    s = _SPEAKER.search(text)
+    return m.group("title").rstrip(" ,.;"), (s.group("who").rstrip(" ,.;") if s else None)
 # Announcement-board items that are not events in their own right.
 _NOT_EVENT = re.compile(r"^https?://|\bdeadline\b.*\b(extended|is)\b|\bextended (till|upto|up to|until)\b|"
                         r"^(registration|abstract|proposal)s?\b.*\bdeadline\b|proposal submission", re.I)
@@ -139,6 +153,7 @@ def extract_listing(url, source, default_location, href_filter=None,
                 break
         if not start or (generic and GENERIC_LINK.match(title)) or _NOT_EVENT.search(title):
             continue  # undated (or untitled) -> not an event we can place in time
+        title, speaker = labelled_title(title)
         full = urljoin(url, href)
         key = (title.lower(), start)
         if key in seen:
@@ -146,6 +161,6 @@ def extract_listing(url, source, default_location, href_filter=None,
         seen.add(key)
         out.append(dict(title=title, url=full, start_date=start, end_date=end or start,
                         deadline=None, location=default_location, country=None,
-                        online=False, tz=None, description=desc, speaker=None,
+                        online=False, tz=None, description=desc, speaker=speaker,
                         source=source, raw_type=raw_type, declared=[], priority=False))
     return out

@@ -1,5 +1,5 @@
 name: Add event
-description: Put an event on Research Horizon (from an email, poster, WhatsApp...). It appears on the site within a few minutes; close the issue to remove it.
+description: Put an event on Event Horizon 2.0 (from an email, poster, WhatsApp...). It appears on the site within a few minutes; close the issue to remove it.
 title: "[Event] "
 labels: ["add-event"]
 body:

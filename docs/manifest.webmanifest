@@ -1,6 +1,6 @@
 {
-  "name": "Research Horizon — research event radar",
-  "short_name": "Research Horizon",
+  "name": "Event Horizon 2.0 — research event radar",
+  "short_name": "Event Horizon 2.0",
   "description": "Conferences, workshops, schools and talks across physics, astronomy, mathematics, AI/ML and computer science, ranked for the research profile you choose.",
   "start_url": "./",
   "scope": "./",

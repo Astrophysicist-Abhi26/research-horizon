@@ -267,7 +267,170 @@ def _labelled_list(cfg):
     return out
 
 
-ADAPTERS = {"listing": _listing, "ical": _ical, "google_calendar": _google_calendar,
+# ---------------------------------------------------------------------------
+# table — pages that list events as an HTML table with a header row
+# (IIT Madras "Title | Speaker | Date", IIT Delhi "Date | Time | Speaker | ... |
+# Title", IACS "Title | uploaded date | Event date", PRL "Date | Day | Event").
+# Columns are recognised by their header words, so one adapter fits them all.
+# ---------------------------------------------------------------------------
+_COLS = [  # (field, header pattern); first match wins per column
+    ("date", re.compile(r"event\s*date|^date|date\s*(?:&|and)\s*time|^when|schedule", re.I)),
+    ("skip", re.compile(r"upload|posted|publish|sl\.?$|s\.?\s*no|^#$|^no\.?$|^day$|^time$", re.I)),
+    ("title", re.compile(r"title|topic|^event|programme|program|seminar|lecture|subject", re.I)),
+    ("speaker", re.compile(r"speaker|presenter|lecturer|^by$|^name", re.I)),
+    ("affil", re.compile(r"affiliation|institut|university|from$", re.I)),
+    ("venue", re.compile(r"venue|place|location|room", re.I)),
+    ("desc", re.compile(r"abstract|details?|description|summary", re.I)),
+]
+
+
+def _columns(header_cells):
+    cols = {}
+    for i, h in enumerate(header_cells):
+        h = clean(h)
+        for field, pat in _COLS:
+            if pat.search(h):
+                if field != "skip" and field not in cols:
+                    cols[field] = i
+                break
+    return cols
+
+
+def table_from_html(cfg, html, page_url):
+    from urllib.parse import urljoin
+    soup = BeautifulSoup(html, "html.parser")
+    out, seen = [], set()
+    for table in soup.find_all("table"):
+        rows = table.find_all("tr")
+        thead = table.find("thead")
+        if thead is not None and not thead.find("tr"):      # <thead><th>..</th></thead> (IACS)
+            head = thead.find_all("th")
+            rows = [None] + [r for r in rows if r.find("td")]
+        elif rows:
+            head = rows[0].find_all(["th", "td"])
+        if len(rows) < 2:
+            continue
+        cols = _columns([c.get_text(" ") for c in head])
+        if "date" not in cols or "title" not in cols:
+            continue
+        for tr in rows[1:]:
+            cells = tr.find_all(["td", "th"])
+            if len(cells) <= max(cols.values()):
+                continue
+            def cell(f):
+                v = clean(cells[cols[f]].get_text(" ")) if f in cols else ""
+                return "" if re.fullmatch(r"[-–—]+|n/?a|tba|tbd", v, re.I) else v
+            title = cell("title")
+            start, end = parse_date_range(cell("date"))
+            key = (start, re.sub(r"\W+", "", title.lower()))
+            if not title or not start or key in seen or re.fullmatch(r"(?i)to be announced", title):
+                continue          # (a pop-up abstract often repeats the row: IIT Delhi)
+            seen.add(key)
+            a = cells[cols["title"]].find("a", href=True) or next(
+                (x for x in tr.find_all("a", href=True)
+                 if not x["href"].startswith(("#", "javascript:", "mailto:"))), None)
+            url = urljoin(page_url, a["href"]) if a and not a["href"].startswith("#") else page_url
+            who = cell("speaker")
+            if who and cell("affil"):
+                who = f"{who} ({cell('affil')})"
+            loc = ", ".join(x for x in (cell("venue"), cfg.get("location")) if x)
+            out.append(_event(cfg, f"{title} — {cell('speaker')}" if cell("speaker") else title,
+                              url, start, end, location=loc, description=cell("desc"),
+                              raw_type=cfg.get("type"), speaker=who or None))
+    return out
+
+
+def _table(cfg):
+    out = []
+    for url in _urls(cfg):
+        out += table_from_html(cfg, get(url, insecure_ok=bool(cfg.get("insecure_ok"))).text, url)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# rss — RSS feeds of upcoming events whose item titles start with the date
+# (Joomla JEvents "latest events": "30 Oct 2026 11:00 : BIO-CCU 2026 - ...").
+# A multi-day event appears once per day; those rows are merged into a range.
+# ---------------------------------------------------------------------------
+_RSS_DATE_PREFIX = re.compile(r"^\s*(\d{1,2}\s+\w{3,9}\.?\s+\d{4})(?:\s+\d{1,2}[:.]\d{2}(?:\s*[ap]m)?)?\s*[:\-–]\s*", re.I)
+
+
+def rss_events(cfg, xml_text):
+    import xml.etree.ElementTree as ET
+    root = ET.fromstring(xml_text.encode("utf-8") if isinstance(xml_text, str) else xml_text)
+    merged = {}
+    for item in root.iter("item"):
+        raw = clean(item.findtext("title") or "")
+        link = (item.findtext("link") or "").strip() or cfg.get("page") or cfg["url"]
+        m = _RSS_DATE_PREFIX.match(raw)
+        start = parse_date_range(m.group(1))[0] if m else parse_date_range(raw)[0]
+        title = raw[m.end():] if m else raw
+        if not title or not start:
+            continue
+        key = (link, title.lower())
+        desc = BeautifulSoup(item.findtext("description") or "", "html.parser").get_text(" ")
+        if key in merged:
+            e = merged[key]
+            e["start_date"] = min(e["start_date"], start)
+            e["end_date"] = max(e["end_date"], start)
+        else:
+            merged[key] = _event(cfg, title, link, start, description=desc, raw_type=cfg.get("type"))
+    return list(merged.values())
+
+
+def _rss(cfg):
+    out = []
+    for url in _urls(cfg):
+        out += rss_events(cfg, get(url, insecure_ok=bool(cfg.get("insecure_ok"))).text)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# iiser_pune — IISER Pune's events page is a Vue app that POSTs a search to
+# /events?handler=search with the anti-forgery token embedded in the page.
+# ---------------------------------------------------------------------------
+def _iiser_pune(cfg):
+    import json
+    from urllib.parse import urljoin
+    from common import HTTP
+    base = cfg.get("base", "https://www.iiserpune.ac.in").rstrip("/")
+    page = get(f"{base}/events").text            # also sets the anti-forgery cookie
+    m = re.search(r'data-request-validation-token="([^"]+)"', page)
+    if not m:
+        raise ValueError("IISER Pune events page has no request token")
+    token, out, seen = m.group(1), [], set()
+    for nav in ("today", "upcoming"):
+        for pg in range(1, 11):
+            payload = {"Category": None, "Pg": pg, "Departments": [], "OutreachAndTrainings": [],
+                       "CalendarDate": dt.datetime.now().isoformat(), "CalendarView": "month",
+                       "SelectedNav": nav}
+            r = HTTP.post(f"{base}/events?handler=search", data=json.dumps(payload),
+                          headers={"content-type": "application/json",
+                                   "RequestVerificationToken": token}, timeout=(10, 30))
+            r.raise_for_status()
+            data = r.json()
+            token = data.get("RequestValidationToken") or token
+            for it in data.get("EventItems") or []:
+                if it.get("Id") in seen:
+                    continue
+                seen.add(it.get("Id"))
+                venue = clean(BeautifulSoup(it.get("Venue") or "", "html.parser").get_text(" "))
+                online = bool(re.search(r"zoom|online|webex|google meet|teams", venue, re.I))
+                who = re.sub(r"^\s*by\s+", "", clean(it.get("Summary") or ""), flags=re.I) or None
+                start = iso(it.get("StartDate")) or parse_date_range(it.get("StartDateTime") or "")[0]
+                end = iso(it.get("EndDate")) or parse_date_range(it.get("EndDateTime") or "")[0]
+                # never copy meeting links or passcodes: an online venue is just "Online"
+                loc = "Online" if online else ", ".join(x for x in (venue[:120], cfg.get("location")) if x)
+                out.append(_event(cfg, it.get("Title"), urljoin(base, it.get("URL") or "/events"),
+                                  start, end, location=loc, description=clean(it.get("Summary") or ""),
+                                  raw_type=it.get("Category") or cfg.get("type"), speaker=who,
+                                  online=online))
+            if pg >= int(data.get("NoOfPages") or 1):
+                break
+    return [e for e in out if e["title"] and e["start_date"]]
+
+
+ADAPTERS = {"iiser_pune": _iiser_pune, "rss": _rss, "table": _table, "listing": _listing, "ical": _ical, "google_calendar": _google_calendar,
             "wp_events": _wp_events, "indico": _indico, "labelled_list": _labelled_list}
 
 
@@ -282,13 +445,42 @@ def _registry(include_disabled=False):
     return entries
 
 
-FEED_KINDS = {"ical", "google_calendar", "wp_events", "indico"}
+FEED_KINDS = {"ical", "google_calendar", "wp_events", "indico", "rss", "iiser_pune"}
 
 
 def empty_ok_names():
     """Structured feeds answer authoritatively: zero upcoming events from a feed
     that responded means "nothing announced", not "scraper broken"."""
     return {e["name"] for e in _registry(True) if e.get("kind", "listing") in FEED_KINDS}
+
+
+_DESC_TITLE = re.compile(r"\bTitle\s*:\s*(.+?)\s*(?=\b(?:Time|Venue|Abstract|Speaker|Host|"
+                         r"Date|Location)\b[^:]{0,20}:|$)", re.I | re.S)
+
+
+_BADGE = re.compile(r"\s*\(\s*new\s*\)\s*$|^\s*new\s*[:!\-–]\s*", re.I)
+
+
+def run_source(cfg):
+    """Run one registry entry. `include` (a regex) keeps only items whose title
+    matches it; `exclude` drops matching ones (thesis defences, tenders, ...)."""
+    evs = ADAPTERS[cfg.get("kind", "listing")](cfg) or []
+    for e in evs:                            # "(NEW)" badges are not part of a title (IACS)
+        e["title"] = _BADGE.sub("", e.get("title") or "").strip()
+    if cfg.get("title_in_description"):     # calendar entry named after the speaker,
+        for e in evs:                        # "Title: ..." in its description (IIT Bombay)
+            m = _DESC_TITLE.search(e.get("description") or "")
+            if m:
+                who = e["title"]
+                e["title"] = f"{m.group(1).strip(' .,;')} — {who}"
+                e["speaker"] = e.get("speaker") or who
+    if cfg.get("include"):              # notice boards: keep only real events
+        pat = re.compile(cfg["include"], re.I)
+        evs = [e for e in evs if pat.search(e.get("title") or "")]
+    if cfg.get("exclude"):
+        pat = re.compile(cfg["exclude"], re.I)
+        evs = [e for e in evs if not pat.search(e.get("title") or "")]
+    return evs
 
 
 def india_sources(include_disabled=False):
@@ -298,8 +490,7 @@ def india_sources(include_disabled=False):
         kind = e.get("kind", "listing")
         if kind not in ADAPTERS:
             raise ValueError(f"institutes.yaml: unknown kind '{kind}' for {e.get('name')}")
-        out.append((e["name"], (lambda c=e, f=ADAPTERS[kind]: f(c)),
-                    int(e.get("min_expected", 0))))
+        out.append((e["name"], (lambda c=e: run_source(c)), int(e.get("min_expected", 0))))
     return out
 
 

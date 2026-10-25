@@ -1,5 +1,5 @@
 """
-Research Horizon — global sources.
+Event Horizon 2.0 — global sources.
 
 Every source returns a list of raw event dicts:
     title, url, start_date, end_date, deadline, location, country, online,

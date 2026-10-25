@@ -1,4 +1,4 @@
-/* Research Horizon background: a new scientific "poster" on every visit.
+/* Event Horizon 2.0 background: a new scientific "poster" on every visit.
 
    Two layers, both behind the page content:
    - an SVG of line-art motifs (lattices, Feynman diagrams, knots, galaxies …),

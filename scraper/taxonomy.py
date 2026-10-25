@@ -1,5 +1,5 @@
 """
-Research Horizon taxonomy: everything that decides *what an event is about*.
+Event Horizon 2.0 taxonomy: everything that decides *what an event is about*.
 
 How much an event matters is NOT decided here: that is a property of a research
 profile (scraper/profiles.yaml), so the same tagged events can be ranked
